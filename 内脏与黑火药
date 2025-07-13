@@ -1,0 +1,106 @@
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "WeaponModifierUI"
+ScreenGui.ResetOnSpawn = false
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 120) 
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -60)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundTransparency = 1
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Text = "范围改"
+TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0.1, 0, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 18
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Text = "×"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 20
+local ModifyButton = Instance.new("TextButton")
+ModifyButton.Name = "ModifyButton"
+ModifyButton.Text = "一键修改全部"
+ModifyButton.Size = UDim2.new(0.8, 0, 0, 40)
+ModifyButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+ModifyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+ModifyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ModifyButton.Font = Enum.Font.SourceSansBold
+ModifyButton.TextSize = 16
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Text = "点击按钮修改所有"
+StatusLabel.Size = UDim2.new(0.8, 0, 0, 20)
+StatusLabel.Position = UDim2.new(0.1, 0, 0.8, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 14
+TitleLabel.Parent = TitleBar
+CloseButton.Parent = TitleBar
+TitleBar.Parent = MainFrame
+ModifyButton.Parent = MainFrame
+StatusLabel.Parent = MainFrame
+MainFrame.Parent = ScreenGui
+ScreenGui.Parent = PlayerGui
+
+local function modifyAllMotors()
+    if not Player.Character then
+        StatusLabel.Text = "未找到角色"
+        return
+    end
+    
+    local modifiedCount = 0
+    for _, descendant in ipairs(Player.Character:GetDescendants()) do
+        if descendant.Name == "InactiveHandleWeld" and descendant:IsA("Motor6D") then
+            local newCFrame = descendant.C0 * CFrame.new(0, 0, -3 - descendant.C0.Z)
+            descendant.C0 = newCFrame
+            modifiedCount = modifiedCount + 1
+        end
+    end
+    
+    if modifiedCount > 0 then
+        StatusLabel.Text = string.format("已修改%d个连接点", modifiedCount)
+    else
+        StatusLabel.Text = "未找到InactiveHandleWeld"
+    end
+end
+
+ModifyButton.MouseButton1Click:Connect(modifyAllMotors)
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        MainFrame.Draggable = true
+    end
+end)
+
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        MainFrame.Draggable = false
+    end
+end)
