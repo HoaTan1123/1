@@ -1,103 +1,44 @@
-local function SafeExecute()
-    
-    if not game:IsLoaded() then game.Loaded:Wait() end
-    local Player = game:GetService("Players").LocalPlayer
-    if not Player then return end
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
 
-    
-    local function GetCharacter()
-        local char = Player.Character
-        if not char then
-            local charAdded
-            charAdded = Player.CharacterAdded:Connect(function(c)
-                charAdded:Disconnect()
-                char = c
-            end)
-            for _ = 1, 30 do  -- 30次重试（约5秒）
-                if char then break end
-                task.wait(0.1)
-            end
-        end
-        return char
-    end
-
-    
-    local function AntiAC()
-        local Character = GetCharacter()
-        if not Character then 
-            warn("角色加载超时")
-            return 
-        end
-
-        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-        local RootPart = Character:FindFirstChild("HumanoidRootPart")
-        if not Humanoid or not RootPart then return end
-
-        
-        Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-
-        
-        local lastSafePosition = RootPart.Position
-        local lastCheckTime = time()
-
-        
-        local heartbeat
-        heartbeat = game:GetService("RunService").Heartbeat:Connect(function()
-            
-            if time() - lastCheckTime > 3 then
-                if (RootPart.Position - lastSafePosition).Magnitude > 150 then
-                    RootPart.CFrame = CFrame.new(lastSafePosition + Vector3.new(0,3,0))
-                else
-                    lastSafePosition = RootPart.Position
-                end
-                lastCheckTime = time()
-            end
-
-            
-            if RootPart.Velocity.Y > 80 then
-                RootPart.Velocity = Vector3.new(
-                    math.clamp(RootPart.Velocity.X, -60, 60),
-                    math.clamp(RootPart.Velocity.Y, -60, 60),
-                    math.clamp(RootPart.Velocity.Z, -60, 60)
-            end
-        end)
-
-        
-        Character.AncestryChanged:Connect(function()
-            heartbeat:Disconnect()
-            task.wait(1)
-            AntiAC()  -- 重新初始化
-        end)
-    end
-
-    
-    local success, err = pcall(AntiAC)
-    if not success then
-        warn("反作弊初始化失败: "..tostring(err))
-        game:GetService("StarterGui"):SetCore("SendNotification",{
-            Title = "脚本错误",
-            Text = "初始化失败，请重试",
-            Duration = 5
-        })
-    else
-        game:GetService("StarterGui"):SetCore("SendNotification",{
-            Title = "反作弊系统已激活",
-            Text = "状态监控中...",
-            Duration = 3
-        })
-    end
+local function Notify(msg)
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "系统提示",
+        Text = msg,
+        Duration = 3
+    })
 end
 
-local function ProtectedExecute()
-    local success, err = pcall(SafeExecute)
-    if not success then
-        warn("脚本执行错误: "..tostring(err))
-    end
+local function Main()
+    local Char = Player.Character or Player.CharacterAdded:Wait()
+    local Hum = Char:WaitForChild("Humanoid")
+    local Root = Char:WaitForChild("HumanoidRootPart")
+    
+    
+    Hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    
+    
+    RunService.Stepped:Connect(function()
+        for _,v in pairs(Char:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = not (Hum:GetState() == Enum.HumanoidStateType.Flying)
+            end
+        end
+    end)
+    
+    
+    local lastPos = Root.Position
+    RunService.Heartbeat:Connect(function()
+        if (Root.Position - lastPos).Magnitude > 150 then
+            Root.CFrame = CFrame.new(lastPos)
+        else
+            lastPos = Root.Position
+        end
+    end)
+    
+    Notify("✅ 绕过成功\n穿墙已同步飞行状态")
 end
 
-if _G.ExecutorMobile then  -- 手机执行器特殊处理
-    task.spawn(ProtectedExecute)
-else
-    ProtectedExecute()
+if not pcall(Main) then
+    Notify("⚠️ 初始化失败\n请重试或检查角色")
 end
