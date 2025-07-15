@@ -1,0 +1,172 @@
+local Player = game:GetService("Players").LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local SG = game:GetService("StarterGui")
+
+
+local Flight = {
+    Active = false,
+    Speed = 3,
+    MaxSpeed = 8,
+    MinSpeed = 1,
+    Controls = {
+        Forward = Enum.KeyCode.W,
+        Back = Enum.KeyCode.S,
+        Left = Enum.KeyCode.A,
+        Right = Enum.KeyCode.D,
+        Up = Enum.KeyCode.Space,
+        Down = Enum.KeyCode.LeftControl
+    }
+}
+
+
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local SpeedLabel = Instance.new("TextLabel")
+local BtnIncrease = Instance.new("TextButton")
+local BtnDecrease = Instance.new("TextButton")
+local BtnToggle = Instance.new("TextButton")
+
+
+ScreenGui.Name = "AdminFlightUI"
+ScreenGui.Parent = game:GetService("CoreGui")
+
+Frame.Size = UDim2.new(0, 200, 0, 120)
+Frame.Position = UDim2.new(0.8, 0, 0.7, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Frame.BackgroundTransparency = 0.3
+Frame.Parent = ScreenGui
+
+
+SpeedLabel.Text = "速度: "..Flight.Speed
+SpeedLabel.Size = UDim2.new(0, 80, 0, 30)
+SpeedLabel.Position = UDim2.new(0.1, 0, 0.1, 0)
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.Parent = Frame
+
+
+BtnIncrease.Text = "▲"
+BtnIncrease.Size = UDim2.new(0, 50, 0, 30)
+BtnIncrease.Position = UDim2.new(0.75, 0, 0.2, 0)
+BtnIncrease.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+BtnIncrease.Parent = Frame
+
+BtnDecrease.Text = "▼"
+BtnDecrease.Size = UDim2.new(0, 50, 0, 30)
+BtnDecrease.Position = UDim2.new(0.75, 0, 0.6, 0)
+BtnDecrease.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+BtnDecrease.Parent = Frame
+
+
+BtnToggle.Text = "启动飞行"
+BtnToggle.Size = UDim2.new(0, 100, 0, 40)
+BtnToggle.Position = UDim2.new(0.1, 0, 0.4, 0)
+BtnToggle.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+BtnToggle.Parent = Frame
+
+
+local function Notify(title, message, duration)
+    SG:SetCore("SendNotification", {
+        Title = title,
+        Text = message,
+        Duration = duration or 3,
+        Icon = "rbxassetid://6726579485"
+    })
+    
+    
+    if Flight.Active then
+        local sound = Instance.new("Sound")
+        sound.SoundId = "rbxassetid://9117950362" -- 成功音效
+        sound.Volume = 0.3
+        sound.Parent = workspace
+        sound:Play()
+        sound.Ended:Connect(function() sound:Destroy() end)
+    end
+end
+
+
+local function VectorFlight()
+    local Camera = workspace.CurrentCamera
+    local Direction = Vector3.new()
+    
+    RS.Stepped:Connect(function()
+        if Flight.Active and RootPart then
+            
+            if UIS:IsKeyDown(Flight.Controls.Forward) then
+                Direction += Camera.CFrame.LookVector
+            end
+            if UIS:IsKeyDown(Flight.Controls.Back) then
+                Direction -= Camera.CFrame.LookVector
+            end
+            if UIS:IsKeyDown(Flight.Controls.Left) then
+                Direction -= Camera.CFrame.RightVector
+            end
+            if UIS:IsKeyDown(Flight.Controls.Right) then
+                Direction += Camera.CFrame.RightVector
+            end
+            if UIS:IsKeyDown(Flight.Controls.Up) then
+                Direction += Vector3.new(0,1,0)
+            end
+            if UIS:IsKeyDown(Flight.Controls.Down) then
+                Direction -= Vector3.new(0,1,0)
+            end
+            
+            if Direction.Magnitude > 0 then
+                RootPart.CFrame += Direction.Unit * Flight.Speed/20
+            end
+            Direction = Vector3.new()
+        end
+    end)
+end
+
+BtnIncrease.MouseButton1Click:Connect(function()
+    Flight.Speed = math.min(Flight.Speed + 0.5, Flight.MaxSpeed)
+    SpeedLabel.Text = "速度: "..tostring(Flight.Speed)
+    Notify("速度调节", "当前速度: "..Flight.Speed, 1)
+end)
+
+BtnDecrease.MouseButton1Click:Connect(function()
+    Flight.Speed = math.max(Flight.Speed - 0.5, Flight.MinSpeed)
+    SpeedLabel.Text = "速度: "..tostring(Flight.Speed)
+    Notify("速度调节", "当前速度: "..Flight.Speed, 1)
+end)
+
+BtnToggle.MouseButton1Click:Connect(function()
+    Flight.Active = not Flight.Active
+    BtnToggle.Text = Flight.Active and "飞行中 (F)" or "启动飞行"
+    BtnToggle.BackgroundColor3 = Flight.Active and Color3.fromRGB(0, 200, 50) or Color3.fromRGB(0, 120, 215)
+    Humanoid:ChangeState(Flight.Active and Enum.HumanoidStateType.Physics or Enum.HumanoidStateType.GettingUp)
+    
+  
+    if Flight.Active then
+        Notify("飞行系统", "✔️ 飞行模式已激活\nWASD+空格控制方向", 4)
+    else
+        Notify("飞行系统", "✖️ 飞行模式已关闭", 2)
+    end
+end)
+
+RS.Stepped:Connect(function()
+    if Character then
+        for _,v in pairs(Character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = not Flight.Active
+            end
+        end
+    end
+end)
+
+VectorFlight()
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+Notify(
+    "管理员飞行系统", 
+    "✅ 系统加载完成\n点击按钮启动飞行", 
+    5
+)
+
+Player.CharacterRemoving:Connect(function()
+    ScreenGui:Destroy()
+end)
