@@ -1,0 +1,29 @@
+local Player = game:GetService("Players").LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local UIS = game:GetService("UserInputService")
+
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+for _, Part in pairs(Character:GetDescendants()) do
+    if Part:IsA("BasePart") then
+        Part.CanCollide = false
+    end
+end
+
+local Flying = false
+UIS.TouchLongPress:Connect(function()
+    Flying = true
+    while Flying and Character and Humanoid do
+        Character:SetPrimaryPartCFrame(Character.PrimaryPart.CFrame + Vector3.new(0, 0.5, 0))
+        task.wait(0.05)
+    end
+end)
+
+UIS.TouchEnded:Connect(function() Flying = false end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✅ 脚本已加载",
+    Text = "长按屏幕飞行 | 自动穿墙",
+    Duration = 5
+})
