@@ -1,0 +1,155 @@
+local Player = game:GetService("Players").LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+local FLY_ENABLED = false
+local FLY_SPEED = 2 -- 初始速度
+local ANTI_GRAVITY = true -- 防下坠
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local DragHandle = Instance.new("TextButton") -- 新增拖拽手柄
+local BtnToggle = Instance.new("TextButton")
+local BtnSpeed = Instance.new("TextButton")
+
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Name = "MobileFlightUI"
+
+MainFrame.Size = UDim2.new(0, 180, 0, 80)
+MainFrame.Position = UDim2.new(0.5, -90, 0.7, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+MainFrame.BackgroundTransparency = 0.3
+MainFrame.Active = true
+MainFrame.Selectable = true
+MainFrame.Parent = ScreenGui
+
+DragHandle.Text = "≡"
+DragHandle.Size = UDim2.new(0, 180, 0, 20)
+DragHandle.Position = UDim2.new(0, 0, 0, 0)
+DragHandle.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+DragHandle.Parent = MainFrame
+
+BtnToggle.Text = "✈️ 启动飞行"
+BtnToggle.Size = UDim2.new(0, 120, 0, 40)
+BtnToggle.Position = UDim2.new(0.05, 0, 0.3, 0)
+BtnToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+BtnToggle.Parent = MainFrame
+
+BtnSpeed.Text = "速度: 2x"
+BtnSpeed.Size = UDim2.new(0, 80, 0, 30)
+BtnSpeed.Position = UDim2.new(0.5, 0, 0.3, 0)
+BtnSpeed.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+BtnSpeed.Parent = MainFrame
+
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+DragHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+DragHandle.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+DragHandle.InputEnded:Connect(function(input)
+    dragging = false
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if dragging and (input == dragInput) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local function AntiGravity()
+    while FLY_ENABLED and Character do
+        if ANTI_GRAVITY and RootPart and Humanoid then
+            RootPart.Velocity = Vector3.new(RootPart.Velocity.X, 0, RootPart.Velocity.Z)
+        end
+        wait(0.1)
+    end
+end
+
+BtnToggle.MouseButton1Click:Connect(function()
+    FLY_ENABLED = not FLY_ENABLED
+    
+    if FLY_ENABLED then
+        BtnToggle.Text = "🛑 停止飞行"
+        BtnToggle.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+        Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+        coroutine.wrap(AntiGravity)()
+    else
+        BtnToggle.Text = "✈️ 启动飞行"
+        BtnToggle.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+end)
+
+local SPEEDS = {1, 2, 3} -- 低/中/高三档
+local currentSpeedIndex = 2
+
+BtnSpeed.MouseButton1Click:Connect(function()
+    currentSpeedIndex = currentSpeedIndex % #SPEEDS + 1
+    FLY_SPEED = SPEEDS[currentSpeedIndex]
+    BtnSpeed.Text = "速度: "..FLY_SPEED.."x"
+end)
+
+game:GetService("RunService").Stepped:Connect(function()
+    if Character then
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = not FLY_ENABLED
+            end
+        end
+    end
+end)
+
+local Camera = workspace.CurrentCamera
+local TOUCH_CONTROLS = {
+    Forward = false,
+    Backward = false,
+    Left = false,
+    Right = false
+}
+
+local function ProcessMovement()
+    while FLY_ENABLED do
+        local moveDir = Vector3.new()
+        
+        if TOUCH_CONTROLS.Forward then
+            moveDir += Camera.CFrame.LookVector
+        end
+        if TOUCH_CONTROLS.Backward then
+            moveDir -= Camera.CFrame.LookVector
+        end
+        if TOUCH_CONTROLS.Left then
+            moveDir -= Camera.CFrame.RightVector
+        end
+        if TOUCH_CONTROLS.Right then
+            moveDir += Camera.CFrame.RightVector
+        end
+        
+        if moveDir.Magnitude > 0 then
+            RootPart.CFrame = RootPart.CFrame + (moveDir.Unit * FLY_SPEED/10)
+        end
+        
+        wait()
+    end
+end
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "手机飞行系统已加载",
+    Text = "拖动顶部手柄移动UI面板",
+    Duration = 5
+})
