@@ -1,0 +1,36 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+repeat task.wait() until Player.Character
+local Character = Player.Character
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+RunService.Stepped:Connect(function()
+    local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not isFlying
+        end
+    end
+end)
+
+local lastPos = RootPart.Position
+RunService.Heartbeat:Connect(function()
+    if (RootPart.Position - lastPos).Magnitude > 100 then
+        RootPart.CFrame = CFrame.new(lastPos)
+    else
+        lastPos = RootPart.Position
+    end
+end)
+
+for _ = 1, 3 do
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "✅ 系统激活",
+        Text = "基础功能已加载",
+        Duration = 3
+    })
+    task.wait(0.3)
+end
