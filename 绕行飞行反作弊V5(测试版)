@@ -4,13 +4,17 @@ local TextChatService = game:GetService("TextChatService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local WHITELIST = {
-    "HoaTan_1123",
+    "HoaTan_1123",  -- 允许使用的用户名
+    "Aikha0324",    -- 添加更多允许的用户
+    "Jr58623",
+    "COOKiCd",
+    "ALFArabban10122",
+    "gyfidxb54188"
 }
 
 local function isWhitelisted()
-    
     for _, name in ipairs(WHITELIST) do
-        if type(name) == "string" and Player.Name == name then
+        if Player.Name == name then
             return true
         end
     end
@@ -35,82 +39,133 @@ game:GetService("StarterGui"):SetCore("SendNotification",{
     Duration = 3
 })
 
-local Character = Player.Character or Player.CharacterAdded:Wait()
+local Character = Player.Character or Player:WaitForChild("CharacterAdded"):Wait()
 local Humanoid = Character:WaitForChild("Humanoid") 
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
-local function setupFakeUsernameSystem()
+local function setupAdvancedUsernameSystem()
     if not ENABLE_FAKE_NAME then return end
     
     
-    local FakeNameEvent
-    if not ReplicatedStorage:FindFirstChild("FakeNameEvent") then
-        FakeNameEvent = Instance.new("RemoteEvent")
-        FakeNameEvent.Name = "FakeNameEvent"
-        FakeNameEvent.Parent = ReplicatedStorage
-    else
-        FakeNameEvent = ReplicatedStorage.FakeNameEvent
-    end
-
-    
-    local function setupFakeNameTag()
-        local realTag = Character:FindFirstChildWhichIsA("BillboardGui")
-        if realTag then realTag:Destroy() end
+    local function createFloatingTag()
+        local tag = Instance.new("BillboardGui")
+        tag.Name = "FakeNameTag"
+        tag.Adornee = RootPart
+        tag.Size = UDim2.new(0, 500, 0, 80)  -- 更大的尺寸
+        tag.StudsOffset = Vector3.new(0, 4, 0)  -- 更高的位置
+        tag.AlwaysOnTop = true
+        tag.MaxDistance = 200
         
-        local fakeTag = Instance.new("BillboardGui")
-        fakeTag.Name = "FakeNameTag"
-        fakeTag.Adornee = RootPart
-        fakeTag.Size = UDim2.new(0, 200, 0, 50)
-        fakeTag.StudsOffset = Vector3.new(0, 3, 0)
-        fakeTag.AlwaysOnTop = true
-        fakeTag.Active = true
-        fakeTag.MaxDistance = 100
+        local background = Instance.new("Frame")
+        background.Size = UDim2.new(1, 0, 1, 0)
+        background.BackgroundColor3 = Color3.new(0, 0, 0)
+        background.BackgroundTransparency = 0.7
+        background.BorderSizePixel = 0
         
         local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.Size = UDim2.new(1, -10, 1, -10)
+        nameLabel.Position = UDim2.new(0, 5, 0, 5)
         nameLabel.BackgroundTransparency = 1
         nameLabel.Text = FAKE_USERNAME
         nameLabel.Font = Enum.Font.SourceSansBold
-        nameLabel.TextSize = 24
-        nameLabel.TextColor3 = Color3.new(1, 0.8, 0.2)
+        nameLabel.TextSize = 28
+        nameLabel.TextColor3 = Color3.new(1, 1, 0)
         nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-        nameLabel.TextStrokeTransparency = 0.2
-        nameLabel.Parent = fakeTag
+        nameLabel.TextStrokeTransparency = 0
+        nameLabel.TextScaled = true
         
-        fakeTag.Parent = Character
+        background.Parent = tag
+        nameLabel.Parent = tag
+        tag.Parent = Character
+        
         
         Humanoid.Died:Connect(function()
-            fakeTag:Destroy()
+            tag:Destroy()
+            wait(3) -- 等待重生
             if Player.Character then
-                setupFakeNameTag()
+                createFloatingTag()
             end
         end)
     end
-
     
-    local function setupFakeChatName()
+    
+    local function setupChatOverride()
+        
         local originalChatHandler = TextChatService.OnIncomingMessage
         
         TextChatService.OnIncomingMessage = function(message)
             if message.TextSource and message.TextSource.UserId == Player.UserId then
-                local modifiedMessage = message:Clone()
-                modifiedMessage.TextSource = {
-                    UserId = Player.UserId,
-                    Name = FAKE_USERNAME
+                
+                local fakeMessage = {
+                    Text = message.Text,
+                    TextChannel = message.TextChannel,
+                    Timestamp = message.Timestamp,
+                    Status = message.Status,
+                    TextSource = {
+                        UserId = Player.UserId,
+                        Name = FAKE_USERNAME
+                    },
+                    PrefixText = "["..FAKE_USERNAME.."]",
+                    GetTimeAdded = message.GetTimeAdded
                 }
-                modifiedMessage.PrefixText = "<font color='#FF9900'>["..FAKE_USERNAME.."]</font>"
-                return modifiedMessage
+                
+                
+                return fakeMessage
             end
+            
+            
             return originalChatHandler and originalChatHandler(message) or message
         end
     end
-
-    setupFakeNameTag()
-    setupFakeChatName()
+    
+    
+    local function removeRealTags()
+        for _, obj in ipairs(Character:GetDescendants()) do
+            if obj:IsA("BillboardGui") and obj.Name ~= "FakeNameTag" then
+                if obj:FindFirstChildWhichIsA("TextLabel") then
+                    obj:Destroy()
+                end
+            end
+        end
+    end
+    
+    
+    local function createFakePlayerEntry()
+        -- 创建虚假玩家对象
+        local fakePlayer = {
+            Name = FAKE_USERNAME,
+            UserId = Player.UserId,
+            DisplayName = FAKE_USERNAME,
+            Team = Player.Team
+        }
+        
+        
+        setmetatable(Player, {
+            __index = function(_, key)
+                if key == "Name" then
+                    return FAKE_USERNAME
+                elseif key == "DisplayName" then
+                    return FAKE_USERNAME
+                end
+                return fakePlayer[key] or rawget(Player, key)
+            end
+        })
+    end
+    
+    
+    createFloatingTag()
+    setupChatOverride()
+    removeRealTags()
+    createFakePlayerEntry()
+    
+   
+    RunService.Heartbeat:Connect(function()
+        removeRealTags()  -- 持续移除真实标签
+    end)
     
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🕵️ 用户名伪装已激活",
-        Text = "其他玩家看到你的名字为: "..FAKE_USERNAME,
+        Title = "🕵️ 高级伪装已激活",
+        Text = "其他玩家看到你为: "..FAKE_USERNAME,
         Duration = 5
     })
 end
@@ -136,28 +191,30 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-setupFakeUsernameSystem()
+setupAdvancedUsernameSystem()
 
 game:GetService("StarterGui"):SetCore("SendNotification",{
     Title = "✅ 启动成功",
-    Text = "反作弊绕过已激活 | 用户名伪装中",
+    Text = "反作弊绕过激活 | 高级伪装中",
     Duration = 5
 })
 
 if ENABLE_FAKE_NAME then
     spawn(function()
         while true do
-            wait(60)
-            local randomName = ""
-            local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-            for i = 1, 12 do
-                randomName = randomName .. string.sub(chars, math.random(1, #chars), 1)
-            end
-            FAKE_USERNAME = randomName
-            setupFakeUsernameSystem()
+            wait(120)  -- 每2分钟更换一次
+            
+            -- 生成更自然的随机用户名
+            local prefixes = {"Dark", "Shadow", "Ghost", "Stealth", "Ninja", "Phantom", "Mystic"}
+            local suffixes = {"Warrior", "Hunter", "Assassin", "Rogue", "Walker", "Viper", "Falcon"}
+            local numbers = math.random(100, 999)
+            
+            FAKE_USERNAME = prefixes[math.random(#prefixes)] .. suffixes[math.random(#suffixes)] .. numbers
+            
+            setupAdvancedUsernameSystem()
             game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "🔄 用户名已更新",
-                Text = "新伪装名: "..FAKE_USERNAME,
+                Title = "🔄 身份已更新",
+                Text = "新伪装身份: "..FAKE_USERNAME,
                 Duration = 3
             })
         end
