@@ -1,0 +1,55 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+local function ForceStart()
+    local Character = Player.Character
+    if not Character then
+        for i = 1, 30 do
+            if Player.Character then break end
+            Player.CharacterAdded:Wait()
+        end
+        Character = Player.Character
+    end
+
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 5)
+    local RootPart = Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart", 5)
+
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+    RunService.Stepped:Connect(function()
+        local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = not isFlying
+            end
+        end
+    end)
+
+    local lastPos = RootPart.Position
+    RunService.Heartbeat:Connect(function()
+        if (RootPart.Position - lastPos).Magnitude > 150 then
+            RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
+        else
+            lastPos = RootPart.Position
+        end
+    end)
+
+    for i = 1, 3 do
+        game:GetService("StarterGui"):SetCore("SendNotification",{
+            Title = "✅ 绕过系统激活",
+            Text = "状态正常\n飞行时自动穿墙",
+            Duration = 5
+        })
+        task.wait(0.5)
+    end
+end
+
+local success, err = pcall(ForceStart)
+if not success then
+    warn("反作弊初始化失败: "..tostring(err))
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "⚠️ 严重错误",
+        Text = "请重新执行脚本\n"..tostring(err):sub(1, 50),
+        Duration = 10
+    })
+end
