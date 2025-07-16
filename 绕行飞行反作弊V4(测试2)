@@ -1,0 +1,39 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+    Title = "🛠️ 正在启动反作弊",
+    Text = "内脏与黑火药专用版", 
+    Duration = 3
+})
+
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid") 
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+RunService.Stepped:Connect(function()
+    local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not isFlying
+        end
+    end
+end)
+
+local lastPos = RootPart.Position
+RunService.Heartbeat:Connect(function() 
+    if (RootPart.Position - lastPos).Magnitude > 150 then
+        RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
+    else
+        lastPos = RootPart.Position
+    end
+end)
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+    Title = "✅ 启动成功",
+    Text = "反作弊绕过已激活",
+    Duration = 5
+})
