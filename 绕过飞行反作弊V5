@@ -1,44 +1,39 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
 
-Player.CharacterAdded:Connect(function(Character)
-    local Humanoid = Character:WaitForChild("Humanoid")
-    local RootPart = Character:WaitForChild("HumanoidRootPart")
-    
-   
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    
-    
-    local lastPos = RootPart.Position
-    RunService.Heartbeat:Connect(function()
-        if (RootPart.Position - lastPos).Magnitude > 150 then
-            RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
-        else
-            lastPos = RootPart.Position
-        end
-    end)
-end)
+local Character, Humanoid, RootPart
+for _ = 1, 3 do
+    Character = Player.Character or Player.CharacterAdded:Wait()
+    Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    RootPart = Character:FindFirstChild("HumanoidRootPart")
+    if Humanoid and RootPart then break end
+    task.wait(1)
+end
+
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 
 RunService.Stepped:Connect(function()
-    if Player.Character then
-        local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
-        local isFlying = Humanoid and Humanoid:GetState() == Enum.HumanoidStateType.Flying
-        
-        for _, part in pairs(Player.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = not isFlying
-            end
+    local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not isFlying
         end
     end
 end)
 
+local lastPos = RootPart.Position
 RunService.Heartbeat:Connect(function()
-    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        local vel = Player.Character.HumanoidRootPart.Velocity
-        if vel.Magnitude > 100 then
-            Player.Character.HumanoidRootPart.Velocity = vel.Unit * 80
-        end
+    if (RootPart.Position - lastPos).Magnitude > 150 then
+        RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
+    else
+        lastPos = RootPart.Position
     end
 end)
 
-print("反作弊加载完成！飞行时自动穿墙")
+game:GetService("StarterGui"):SetCore("SendNotification",{
+    Title = "✅ 绕过成功",
+    Text = "功能已激活：\n- 飞行穿墙\n- 防拉回",
+    Duration = 5
+})
+
+return "绕行飞行反作弊V5 加载完成"
