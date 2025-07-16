@@ -1,0 +1,44 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+Player.CharacterAdded:Connect(function(Character)
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local RootPart = Character:WaitForChild("HumanoidRootPart")
+    
+   
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    
+    
+    local lastPos = RootPart.Position
+    RunService.Heartbeat:Connect(function()
+        if (RootPart.Position - lastPos).Magnitude > 150 then
+            RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
+        else
+            lastPos = RootPart.Position
+        end
+    end)
+end)
+
+RunService.Stepped:Connect(function()
+    if Player.Character then
+        local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+        local isFlying = Humanoid and Humanoid:GetState() == Enum.HumanoidStateType.Flying
+        
+        for _, part in pairs(Player.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = not isFlying
+            end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        local vel = Player.Character.HumanoidRootPart.Velocity
+        if vel.Magnitude > 100 then
+            Player.Character.HumanoidRootPart.Velocity = vel.Unit * 80
+        end
+    end
+end)
+
+print("反作弊加载完成！飞行时自动穿墙")
