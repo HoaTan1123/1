@@ -1,0 +1,165 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local WHITELIST = {
+    "HoaTan_1123",
+}
+
+local function isWhitelisted()
+    
+    for _, name in ipairs(WHITELIST) do
+        if type(name) == "string" and Player.Name == name then
+            return true
+        end
+    end
+    return false
+end
+
+if not isWhitelisted() then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "⚠️ 访问拒绝",
+        Text = "你不在白名单中",
+        Duration = 5
+    })
+    return
+end
+
+local FAKE_USERNAME = "gvjfdxb54188"
+local ENABLE_FAKE_NAME = true
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+    Title = "🛠️ 正在启动反作弊",
+    Text = "内脏与黑火药专用版", 
+    Duration = 3
+})
+
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid") 
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+local function setupFakeUsernameSystem()
+    if not ENABLE_FAKE_NAME then return end
+    
+    
+    local FakeNameEvent
+    if not ReplicatedStorage:FindFirstChild("FakeNameEvent") then
+        FakeNameEvent = Instance.new("RemoteEvent")
+        FakeNameEvent.Name = "FakeNameEvent"
+        FakeNameEvent.Parent = ReplicatedStorage
+    else
+        FakeNameEvent = ReplicatedStorage.FakeNameEvent
+    end
+
+    
+    local function setupFakeNameTag()
+        local realTag = Character:FindFirstChildWhichIsA("BillboardGui")
+        if realTag then realTag:Destroy() end
+        
+        local fakeTag = Instance.new("BillboardGui")
+        fakeTag.Name = "FakeNameTag"
+        fakeTag.Adornee = RootPart
+        fakeTag.Size = UDim2.new(0, 200, 0, 50)
+        fakeTag.StudsOffset = Vector3.new(0, 3, 0)
+        fakeTag.AlwaysOnTop = true
+        fakeTag.Active = true
+        fakeTag.MaxDistance = 100
+        
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = FAKE_USERNAME
+        nameLabel.Font = Enum.Font.SourceSansBold
+        nameLabel.TextSize = 24
+        nameLabel.TextColor3 = Color3.new(1, 0.8, 0.2)
+        nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        nameLabel.TextStrokeTransparency = 0.2
+        nameLabel.Parent = fakeTag
+        
+        fakeTag.Parent = Character
+        
+        Humanoid.Died:Connect(function()
+            fakeTag:Destroy()
+            if Player.Character then
+                setupFakeNameTag()
+            end
+        end)
+    end
+
+    
+    local function setupFakeChatName()
+        local originalChatHandler = TextChatService.OnIncomingMessage
+        
+        TextChatService.OnIncomingMessage = function(message)
+            if message.TextSource and message.TextSource.UserId == Player.UserId then
+                local modifiedMessage = message:Clone()
+                modifiedMessage.TextSource = {
+                    UserId = Player.UserId,
+                    Name = FAKE_USERNAME
+                }
+                modifiedMessage.PrefixText = "<font color='#FF9900'>["..FAKE_USERNAME.."]</font>"
+                return modifiedMessage
+            end
+            return originalChatHandler and originalChatHandler(message) or message
+        end
+    end
+
+    setupFakeNameTag()
+    setupFakeChatName()
+    
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "🕵️ 用户名伪装已激活",
+        Text = "其他玩家看到你的名字为: "..FAKE_USERNAME,
+        Duration = 5
+    })
+end
+
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+RunService.Stepped:Connect(function()
+    local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not isFlying
+        end
+    end
+end)
+
+local lastPos = RootPart.Position
+RunService.Heartbeat:Connect(function() 
+    if (RootPart.Position - lastPos).Magnitude > 150 then
+        RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
+    else
+        lastPos = RootPart.Position
+    end
+end)
+
+setupFakeUsernameSystem()
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+    Title = "✅ 启动成功",
+    Text = "反作弊绕过已激活 | 用户名伪装中",
+    Duration = 5
+})
+
+if ENABLE_FAKE_NAME then
+    spawn(function()
+        while true do
+            wait(60)
+            local randomName = ""
+            local chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+            for i = 1, 12 do
+                randomName = randomName .. string.sub(chars, math.random(1, #chars), 1)
+            end
+            FAKE_USERNAME = randomName
+            setupFakeUsernameSystem()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "🔄 用户名已更新",
+                Text = "新伪装名: "..FAKE_USERNAME,
+                Duration = 3
+            })
+        end
+    end)
+end
