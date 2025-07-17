@@ -1,7 +1,6 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
 
--- 暴力加载角色组件（确保100%加载成功）
 local Character = Player.Character
 if not Character then
     for _ = 1, 30 do
@@ -12,7 +11,6 @@ if not Character then
     if not Character then Character = Player.CharacterAdded:Wait() end
 end
 
--- 确保关键组件存在（兼容各种角色模型）
 local Humanoid, RootPart
 for _ = 1, 50 do
     Humanoid = Character:FindFirstChildOfClass("Humanoid")
@@ -21,12 +19,10 @@ for _ = 1, 50 do
     task.wait(0.1)
 end
 
--- 禁用所有可能导致拉回的状态
 for _, state in pairs(Enum.HumanoidStateType:GetEnumItems()) do
     pcall(function() Humanoid:SetStateEnabled(state, false) end)
 end
 
--- 完全解除物理限制
 for _, part in pairs(Character:GetDescendants()) do
     if part:IsA("BasePart") then
         part.CanCollide = false
@@ -37,35 +33,32 @@ for _, part in pairs(Character:GetDescendants()) do
     end
 end
 
--- 核心反拉回系统（位置历史缓冲）
 local PositionHistory = {}
-local HISTORY_SIZE = 12 -- 比常规更大的缓冲区
+local HISTORY_SIZE = 12
 
--- 填充初始位置
 for _ = 1, HISTORY_SIZE do
     table.insert(PositionHistory, RootPart.Position)
 end
 
--- 智能位置保护系统
 RunService.Heartbeat:Connect(function()
-    -- 更新位置历史
+    
     table.insert(PositionHistory, 1, RootPart.Position)
     if #PositionHistory > HISTORY_SIZE then
         table.remove(PositionHistory)
     end
 
-    -- 计算平滑位置（取历史中间值）
+    
     local avgPos = Vector3.new()
     for _, pos in ipairs(PositionHistory) do
         avgPos = avgPos + pos
     end
     avgPos = avgPos / #PositionHistory
 
-    -- 渐进式位置修正（无感知过渡）
+    
     if (RootPart.Position - avgPos).Magnitude > 2 then
         local tweenInfo = TweenInfo.new(
-            0.3, -- 过渡时间
-            Enum.EasingStyle.Quad, -- 缓动曲线
+            0.3,
+            Enum.EasingStyle.Quad,
             Enum.EasingDirection.Out
         )
         TweenService:Create(
@@ -76,10 +69,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- 反检测伪装系统
 task.spawn(function()
     while true do
-        -- 随机微小动作（模拟正常玩家）
+        
         if math.random() < 0.15 then
             Humanoid.Jump = true
         end
@@ -87,7 +79,6 @@ task.spawn(function()
     end
 end)
 
--- 启动通知（仅显示一次）
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "🛡️ 反拉回系统已激活",
     Text = "现在可以自由使用任何飞行脚本",
