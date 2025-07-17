@@ -1,221 +1,102 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
-local TextChatService = game:GetService("TextChatService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local WHITELIST = {
-    "HoaTan_1123",
-    "Aikha0324",
-    "Jr58623",
-    "COOKiCd",
-    "ALFArabban10122",
-    "gyfidxb54188"
-}
+local MAX_ALLOWED_SPEED = 85
+local POSITION_HISTORY_SIZE = 8
+local COLLISION_UPDATE_RATE = 0.12
 
-local function isWhitelisted()
-    for _, name in ipairs(WHITELIST) do
-        if Player.Name == name then
-            return true
-        end
+local Character = Player.Character
+if not Character then
+    for _ = 1, 30 do
+        Character = Player.Character
+        if Character then break end
+        task.wait(0.1)
     end
-    return false
+    if not Character then Character = Player.CharacterAdded:Wait() end
 end
 
-if not isWhitelisted() then
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "⚠️ 访问拒绝",
-        Text = "你不在白名单中",
-        Duration = 5
-    })
-    return
-end
-
-local FAKE_USERNAME = "gvjfdxb54188"
-local ENABLE_FAKE_NAME = true
-
-game:GetService("StarterGui"):SetCore("SendNotification",{
-    Title = "🛠️ 正在启动反作弊",
-    Text = "内脏与黑火药专用版", 
-    Duration = 3
-})
-
-local Character = Player.Character or Player:WaitForChild("CharacterAdded"):Wait()
-local Humanoid = Character:WaitForChild("Humanoid") 
-local RootPart = Character:WaitForChild("HumanoidRootPart")
-
-local function setupAdvancedUsernameSystem()
-    if not ENABLE_FAKE_NAME then return end
-    
-    
-    local function createFloatingTag()
-        local tag = Instance.new("BillboardGui")
-        tag.Name = "FakeNameTag"
-        tag.Adornee = RootPart
-        tag.Size = UDim2.new(0, 500, 0, 80)
-        tag.StudsOffset = Vector3.new(0, 4, 0)
-        tag.AlwaysOnTop = true
-        tag.MaxDistance = 200
-        
-        local background = Instance.new("Frame")
-        background.Size = UDim2.new(1, 0, 1, 0)
-        background.BackgroundColor3 = Color3.new(0, 0, 0)
-        background.BackgroundTransparency = 0.7
-        background.BorderSizePixel = 0
-        
-        local nameLabel = Instance.new("TextLabel")
-        nameLabel.Size = UDim2.new(1, -10, 1, -10)
-        nameLabel.Position = UDim2.new(0, 5, 0, 5)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.Text = FAKE_USERNAME
-        nameLabel.Font = Enum.Font.SourceSansBold
-        nameLabel.TextSize = 28
-        nameLabel.TextColor3 = Color3.new(1, 1, 0)
-        nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-        nameLabel.TextStrokeTransparency = 0
-        nameLabel.TextScaled = true
-        
-        background.Parent = tag
-        nameLabel.Parent = tag
-        tag.Parent = Character
-        
-        
-        Humanoid.Died:Connect(function()
-            tag:Destroy()
-            wait(3)
-            if Player.Character then
-                createFloatingTag()
-            end
-        end)
-    end
-    
-    
-    local function setupChatOverride()
-        
-        local originalChatHandler = TextChatService.OnIncomingMessage
-        
-        TextChatService.OnIncomingMessage = function(message)
-            if message.TextSource and message.TextSource.UserId == Player.UserId then
-                
-                local fakeMessage = {
-                    Text = message.Text,
-                    TextChannel = message.TextChannel,
-                    Timestamp = message.Timestamp,
-                    Status = message.Status,
-                    TextSource = {
-                        UserId = Player.UserId,
-                        Name = FAKE_USERNAME
-                    },
-                    PrefixText = "["..FAKE_USERNAME.."]",
-                    GetTimeAdded = message.GetTimeAdded
-                }
-                
-                
-                return fakeMessage
-            end
-            
-            
-            return originalChatHandler and originalChatHandler(message) or message
-        end
-    end
-    
-    
-    local function removeRealTags()
-        for _, obj in ipairs(Character:GetDescendants()) do
-            if obj:IsA("BillboardGui") and obj.Name ~= "FakeNameTag" then
-                if obj:FindFirstChildWhichIsA("TextLabel") then
-                    obj:Destroy()
-                end
-            end
-        end
-    end
-    
-    
-    local function createFakePlayerEntry()
-        local fakePlayer = {
-            Name = FAKE_USERNAME,
-            UserId = Player.UserId,
-            DisplayName = FAKE_USERNAME,
-            Team = Player.Team
-        }
-        
-        
-        setmetatable(Player, {
-            __index = function(_, key)
-                if key == "Name" then
-                    return FAKE_USERNAME
-                elseif key == "DisplayName" then
-                    return FAKE_USERNAME
-                end
-                return fakePlayer[key] or rawget(Player, key)
-            end
-        })
-    end
-    
-    
-    createFloatingTag()
-    setupChatOverride()
-    removeRealTags()
-    createFakePlayerEntry()
-    
-   
-    RunService.Heartbeat:Connect(function()
-        removeRealTags()
-    end)
-    
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "🕵️ 高级伪装已激活",
-        Text = "其他玩家看到你为: "..FAKE_USERNAME,
-        Duration = 5
-    })
+local Humanoid, RootPart
+for _ = 1, 50 do
+    Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    RootPart = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChild("Torso")
+    if Humanoid and RootPart then break end
+    task.wait(0.1)
 end
 
 Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
 Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 
-RunService.Stepped:Connect(function()
-    local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
-    for _, part in pairs(Character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not isFlying
+local isFlying = false
+local positionHistory = {}
+local lastCollisionUpdate = 0
+
+Humanoid.StateChanged:Connect(function(_, newState)
+    isFlying = newState == Enum.HumanoidStateType.Flying
+    
+    
+    if isFlying then
+        table.clear(positionHistory)
+        for _ = 1, POSITION_HISTORY_SIZE do
+            table.insert(positionHistory, RootPart.Position)
         end
     end
 end)
 
-local lastPos = RootPart.Position
-RunService.Heartbeat:Connect(function() 
-    if (RootPart.Position - lastPos).Magnitude > 150 then
-        RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
-    else
-        lastPos = RootPart.Position
+RunService.Stepped:Connect(function(_, step)
+    lastCollisionUpdate = lastCollisionUpdate + step
+    if lastCollisionUpdate >= COLLISION_UPDATE_RATE then
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                
+                part.CanCollide = not isFlying
+                part.CanTouch = not isFlying
+                if isFlying then
+                    part.AssemblyLinearVelocity = Vector3.new()
+                    part.AssemblyAngularVelocity = Vector3.new()
+                end
+            end
+        end
+        lastCollisionUpdate = 0
     end
 end)
 
-setupAdvancedUsernameSystem()
+RunService.Heartbeat:Connect(function()
+    
+    table.insert(positionHistory, 1, RootPart.Position)
+    if #positionHistory > POSITION_HISTORY_SIZE then
+        table.remove(positionHistory)
+    end
 
-game:GetService("StarterGui"):SetCore("SendNotification",{
-    Title = "✅ 启动成功",
-    Text = "反作弊绕过激活 | 高级伪装中",
-    Duration = 5
-})
+    
+    local dynamicThreshold = MAX_ALLOWED_SPEED
+    if isFlying then
+        dynamicThreshold = dynamicThreshold * 1.3 
+    end
 
-if ENABLE_FAKE_NAME then
-    spawn(function()
-        while true do
-            wait(120)
-            
-            -- 生成更自然的随机用户名
-            local prefixes = {"Dark", "Shadow", "Ghost", "Stealth", "Ninja", "Phantom", "Mystic"}
-            local suffixes = {"Warrior", "Hunter", "Assassin", "Rogue", "Walker", "Viper", "Falcon"}
-            local numbers = math.random(100, 999)
-            
-            FAKE_USERNAME = prefixes[math.random(#prefixes)] .. suffixes[math.random(#suffixes)] .. numbers
-            
-            setupAdvancedUsernameSystem()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "🔄 身份已更新",
-                Text = "新伪装身份: "..FAKE_USERNAME,
-                Duration = 3
-            })
-        end
-    end)
-end
+    
+    local avgSpeed = 0
+    for i = 1, #positionHistory - 1 do
+        avgSpeed = avgSpeed + (positionHistory[i] - positionHistory[i+1]).Magnitude
+    end
+    avgSpeed = avgSpeed / (#positionHistory - 1) * 60
+
+    
+    if avgSpeed > dynamicThreshold then
+        local correctionFactor = math.min(1, (avgSpeed - dynamicThreshold) / 50)
+        local targetPos = positionHistory[math.floor(#positionHistory/2)] 
+        RootPart.CFrame = RootPart.CFrame:Lerp(CFrame.new(targetPos), correctionFactor)
+    end
+end)
+
+task.spawn(function()
+    
+    task.wait(8)
+    
+    
+    for _ = 1, 3 do
+        Humanoid.Jump = true
+        task.wait(0.5)
+    end
+end)
