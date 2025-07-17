@@ -1,39 +1,177 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
-local Character, Humanoid, RootPart
-for _ = 1, 3 do
-    Character = Player.Character or Player.CharacterAdded:Wait()
-    Humanoid = Character:FindFirstChildOfClass("Humanoid")
-    RootPart = Character:FindFirstChild("HumanoidRootPart")
-    if Humanoid and RootPart then break end
-    task.wait(1)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0.15, 0, 0.08, 0)
+ToggleBtn.Position = UDim2.new(0.82, 0, 0.7, 0)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+ToggleBtn.Text = "✈️ 飞行模式"
+ToggleBtn.Parent = ScreenGui
+
+local Joypad = Instance.new("Frame")
+Joypad.Size = UDim2.new(0.3, 0, 0.3, 0)
+Joypad.Position = UDim2.new(0.1, 0, 0.6, 0)
+Joypad.BackgroundTransparency = 0.7
+Joypad.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Joypad.Parent = ScreenGui
+
+local JoypadThumb = Instance.new("Frame")
+JoypadThumb.Size = UDim2.new(0.3, 0, 0.3, 0)
+JoypadThumb.AnchorPoint = Vector2.new(0.5, 0.5)
+JoypadThumb.Position = UDim2.new(0.5, 0, 0.5, 0)
+JoypadThumb.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+JoypadThumb.Parent = Joypad
+
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+for _, state in pairs(Enum.HumanoidStateType:GetEnumItems()) do
+    pcall(function() Humanoid:SetStateEnabled(state, false) end)
 end
 
-Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+for _, part in pairs(Character:GetDescendants()) do
+    if part:IsA("BasePart") then
+        part.CanCollide = false
+        part.CanTouch = false
+    end
+end
 
-RunService.Stepped:Connect(function()
-    local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
-    for _, part in pairs(Character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not isFlying
-        end
+local Flying = false
+local FlySpeed = 18
+local MoveVector = Vector2.new()
+local VerticalInput = 0
+local TouchStartPos = nil
+
+local function UpdateMoveVector(touchPos)
+    local joypadCenter = Vector2.new(
+        Joypad.AbsolutePosition.X + Joypad.AbsoluteSize.X/2,
+        Joypad.AbsolutePosition.Y + Joypad.AbsoluteSize.Y/2
+    )
+    local relative = touchPos - joypadCenter
+    local maxDist = Joypad.AbsoluteSize.X/2 * 0.8
+    
+    MoveVector = relative / maxDist
+    if MoveVector.Magnitude > 1 then
+        MoveVector = MoveVector.Unit
+    end
+    
+    
+    JoypadThumb.Position = UDim2.new(
+        0.5 + MoveVector.X * 0.35, 0,
+        0.5 + MoveVector.Y * 0.35, 0
+    )
+end
+
+Joypad.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        TouchStartPos = input.Position
     end
 end)
 
-local lastPos = RootPart.Position
-RunService.Heartbeat:Connect(function()
-    if (RootPart.Position - lastPos).Magnitude > 150 then
-        RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
+Joypad.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch and TouchStartPos then
+        UpdateMoveVector(input.Position)
+    end
+end)
+
+Joypad.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        MoveVector = Vector2.new()
+        JoypadThumb.Position = UDim2.new(0.5, 0, 0.5, 0)
+    end
+end)
+
+local UpBtn = Instance.new("TextButton")
+UpBtn.Size = UDim2.new(0.15, 0, 0.08, 0)
+UpBtn.Position = UDim2.new(0.82, 0, 0.6, 0)
+UpBtn.Text = "⬆️ 上升"
+UpBtn.Parent = ScreenGui
+
+local DownBtn = Instance.new("TextButton")
+DownBtn.Size = UDim2.new(0.15, 0, 0.08, 0)
+DownBtn.Position = UDim2.new(0.82, 0, 0.8, 0)
+DownBtn.Text = "⬇️ 下降"
+DownBtn.Parent = ScreenGui
+
+RunService.Heartbeat:Connect(function(delta)
+    if not Flying then return end
+    
+    local camera = workspace.CurrentCamera
+    local forward = camera.CFrame.LookVector * MoveVector.Y
+    local right = camera.CFrame.RightVector * MoveVector.X
+    local up = Vector3.new(0, VerticalInput, 0)
+    
+    local moveDir = (forward + right + up)
+    if moveDir.Magnitude > 0 then
+        moveDir = moveDir.Unit * FlySpeed
     else
-        lastPos = RootPart.Position
+        
+        moveDir = Vector3.new(0, 0.05 * math.sin(tick() * 5), 0)
+    end
+    
+    
+    local newCFrame = RootPart.CFrame + moveDir * delta * 60
+    RootPart.CFrame = newCFrame
+    
+    
+    if moveDir.Magnitude > 0.5 then
+        RootPart.CFrame = CFrame.lookAt(
+            RootPart.Position,
+            RootPart.Position + Vector3.new(moveDir.X, 0, moveDir.Z)
+        )
     end
 end)
 
-game:GetService("StarterGui"):SetCore("SendNotification",{
-    Title = "✅ 绕过成功",
-    Text = "功能已激活：\n- 飞行穿墙\n- 防拉回",
-    Duration = 5
-})
+ToggleBtn.MouseButton1Click:Connect(function()
+    Flying = not Flying
+    ToggleBtn.Text = Flying and "🚶 步行模式" or "✈️ 飞行模式"
+    
+    if Flying then
+        
+        RootPart.Anchored = false
+        RootPart.Velocity = Vector3.new()
+        Humanoid.PlatformStand = true
+    else
+        
+        Humanoid.PlatformStand = false
+    end
+end)
 
-return "绕行飞行反作弊V5 加载完成"
+local function SetVerticalInput(value)
+    VerticalInput = value
+    
+    UpBtn.BackgroundColor3 = value > 0 and Color3.fromRGB(100, 200, 100) or Color3.fromRGB(80, 80, 80)
+    DownBtn.BackgroundColor3 = value < 0 and Color3.fromRGB(200, 100, 100) or Color3.fromRGB(80, 80, 80)
+end
+
+UpBtn.MouseButton1Down:Connect(function() SetVerticalInput(1) end)
+UpBtn.MouseButton1Up:Connect(function() SetVerticalInput(0) end)
+DownBtn.MouseButton1Down:Connect(function() SetVerticalInput(-1) end)
+DownBtn.MouseButton1Up:Connect(function() SetVerticalInput(0) end)
+
+task.spawn(function()
+    while true do
+        
+        if Flying and math.random() < 0.3 then
+            FlySpeed = 15 + math.random() * 10
+        end
+        
+        if Flying and math.random() < 0.1 then
+            task.wait(math.random() * 0.5)
+        end
+        task.wait(0.5)
+    end
+end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "📱 手机飞行控制已激活",
+    Text = "使用左侧摇杆控制方向\n右侧按钮控制高度",
+    Duration = 8
+})
