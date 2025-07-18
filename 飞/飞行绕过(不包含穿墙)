@@ -6,31 +6,43 @@ task.spawn(function()
     local Humanoid = Character:WaitForChild("Humanoid")
     local RootPart = Character:WaitForChild("HumanoidRootPart")
 
-    
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-    Character:SetNetworkOwner(Player)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
 
-    
-    local lastStablePos = RootPart.Position
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part:SetNetworkOwner(Player)
+            part.CanCollide = false
+        end
+    end
+
+    local positionHistory = {}
+    for i = 1, 10 do table.insert(positionHistory, RootPart.Position) end
+
     RunService.Heartbeat:Connect(function()
         Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
         
-        
-        if (RootPart.Position - lastStablePos).Magnitude > 3.5 then
-            RootPart.CFrame = CFrame.new(lastStablePos)
-        else
-            lastStablePos = RootPart.Position
+        table.insert(positionHistory, 1, RootPart.Position)
+        if #positionHistory > 10 then table.remove(positionHistory) end
+
+        local avgPos = Vector3.new(0,0,0)
+        for i, pos in ipairs(positionHistory) do
+            avgPos = avgPos + (pos * (1.5 - i*0.1))
+        end
+        avgPos = avgPos / #positionHistory
+
+        if (RootPart.Position - avgPos).Magnitude > 1.2 then
+            RootPart.CFrame = CFrame.new(avgPos)
         end
 
-        
         RootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
         RootPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
     end)
 end)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ 反作弊绕过激活",
-    Text = "纯净防拉回 | 无高度限制",
+    Title = "✅ 终极防拉回激活",
+    Text = "穿墙级稳定系统 | 零地面拉回",
     Duration = 3
 })
