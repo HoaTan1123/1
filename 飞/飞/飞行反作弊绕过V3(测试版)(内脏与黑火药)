@@ -7,33 +7,41 @@ task.spawn(function()
     local RootPart = Character:WaitForChild("HumanoidRootPart")
 
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    Humanoid.PlatformStand = true
 
     for _, part in pairs(Character:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = false
             part.CanTouch = false
-            part.AssemblyLinearVelocity = Vector3.new(0,0,0)
             part:SetNetworkOwner(Player)
         end
     end
 
-    local targetPosition = RootPart.Position
+    local anchorCFrame = RootPart.CFrame
     RunService.Heartbeat:Connect(function()
-        Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
-        RootPart.CFrame = CFrame.new(targetPosition)
+        RootPart.CFrame = anchorCFrame
+        Humanoid.PlatformStand = true
         
         for _, part in pairs(Character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                part.AssemblyAngularVelocity = Vector3.new(0,0,0)
             end
         end
     end)
 
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "✅ 启动成功",
-        Text = "悬浮优化",
-        Duration = 3
-    })
+    RunService.Stepped:Connect(function()
+        for _, part in pairs(workspace:GetPartsInPart(RootPart, 10)) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
 end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✅ 启动成功",
+    Text = "反拉回穿墙",
+    Duration = 3
+})
