@@ -7,32 +7,36 @@ task.spawn(function()
     local RootPart = Character:WaitForChild("HumanoidRootPart")
 
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
     Humanoid.PlatformStand = true
 
-    local positionBuffer = {RootPart.Position}
+    local positionHistory = {}
+    for i = 1, 12 do table.insert(positionHistory, RootPart.Position) end
+
     RunService.Heartbeat:Connect(function()
-        Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
-        
-        table.insert(positionBuffer, 1, RootPart.Position)
-        if #positionBuffer > 5 then table.remove(positionBuffer) end
+        Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 
-        local avgPos = Vector3.new(0,0,0)
-        for _, pos in ipairs(positionBuffer) do avgPos = avgPos + pos end
-        avgPos = avgPos / #positionBuffer
+        table.insert(positionHistory, 1, RootPart.Position)
+        if #positionHistory > 12 then table.remove(positionHistory) end
 
-        if (RootPart.Position - avgPos).Magnitude > 2 then
-            RootPart.CFrame = CFrame.new(avgPos)
+        local stablePos = Vector3.new(0,0,0)
+        for i, pos in ipairs(positionHistory) do
+            stablePos = stablePos + (pos * (1.2 - i*0.1))
+        end
+        stablePos = stablePos / #positionHistory
+
+        if (RootPart.Position - stablePos).Magnitude > 1.8 then
+            RootPart.CFrame = CFrame.new(stablePos, stablePos + RootPart.CFrame.LookVector)
         end
 
         RootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        RootPart.RotVelocity = Vector3.new(0,0,0)
     end)
-
-    Character:SetNetworkOwner(Player)
 end)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ 飞行稳定激活",
-    Text = "防拉回系统运行中",
-    Duration = 3
+    Title = "✅ 加载成功",
+    Text = "站立飞行已激活",
+    Duration = 8
 })
