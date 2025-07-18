@@ -8,22 +8,31 @@ task.spawn(function()
 
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    Humanoid.PlatformStand = true
 
-    for _, part in pairs(Character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part:SetNetworkOwner(Player)
-        end
-    end
-
+    local positionBuffer = {RootPart.Position}
     RunService.Heartbeat:Connect(function()
         Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+        
+        table.insert(positionBuffer, 1, RootPart.Position)
+        if #positionBuffer > 5 then table.remove(positionBuffer) end
+
+        local avgPos = Vector3.new(0,0,0)
+        for _, pos in ipairs(positionBuffer) do avgPos = avgPos + pos end
+        avgPos = avgPos / #positionBuffer
+
+        if (RootPart.Position - avgPos).Magnitude > 2 then
+            RootPart.CFrame = CFrame.new(avgPos)
+        end
+
         RootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
-        RootPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
     end)
+
+    Character:SetNetworkOwner(Player)
 end)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ 飞行稳定系统",
-    Text = "防拉回已激活",
+    Title = "✅ 飞行稳定激活",
+    Text = "防拉回系统运行中",
     Duration = 3
 })
