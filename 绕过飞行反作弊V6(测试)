@@ -65,7 +65,7 @@ task.spawn(function()
 end)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ 系统就绪",
+    Title = "✅ 启动成功",
     Text = "所有功能已激活",
     Duration = 3
 })
