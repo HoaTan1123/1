@@ -1,0 +1,68 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+task.spawn(function()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.CanTouch = false
+        end
+    end
+
+    local lastUpdate = tick()
+    RunService.Heartbeat:Connect(function()
+        local now = tick()
+        if now - lastUpdate < 0.016 then return end
+        lastUpdate = now
+
+        Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+        
+        local cam = workspace.CurrentCamera
+        if cam then
+            RootPart.CFrame = CFrame.new(RootPart.Position, RootPart.Position + cam.CFrame.LookVector)
+        end
+    end)
+
+    local lastNoclipCheck = 0
+    RunService.Stepped:Connect(function(_, time)
+        if time - lastNoclipCheck < 0.2 then return end
+        lastNoclipCheck = time
+        
+        for _, part in pairs(workspace:GetPartsInPart(RootPart, 5)) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+                task.delay(1, function()
+                    if part and part.Parent then
+                        part.CanCollide = true
+                    end
+                end)
+            end
+        end
+    end)
+
+    local lastValidPos = RootPart.Position
+    local positionBuffer = {lastValidPos}
+    RunService.Heartbeat:Connect(function()
+        table.insert(positionBuffer, 1, RootPart.Position)
+        if #positionBuffer > 5 then table.remove(positionBuffer) end
+
+        if (RootPart.Position - positionBuffer[#positionBuffer]).Magnitude > 3 then
+            RootPart.CFrame = CFrame.new(positionBuffer[#positionBuffer])
+        end
+    end)
+end)
+
+task.delay(1, function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "✅ 启动成功",
+        Text = "v0.15.4 | 低消耗优化版",
+        Duration = 3
+    })
+end)
