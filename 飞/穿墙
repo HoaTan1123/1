@@ -1,0 +1,29 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+task.spawn(function()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    
+    
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.CanTouch = false
+        end
+    end
+
+    
+    RunService.Stepped:Connect(function()
+        for _, part in pairs(workspace:GetPartsInPart(Character:WaitForChild("HumanoidRootPart"))) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✅ 穿墙已绕过",
+    Text = "使用noclip即可自由穿墙",
+    Duration = 3
+})
