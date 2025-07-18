@@ -1,0 +1,39 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+task.spawn(function()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.CanTouch = false
+            part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            part:SetNetworkOwner(Player)
+        end
+    end
+
+    local targetPosition = RootPart.Position
+    RunService.Heartbeat:Connect(function()
+        Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+        RootPart.CFrame = CFrame.new(targetPosition)
+        
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            end
+        end
+    end)
+
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "✅ 启动成功",
+        Text = "悬浮优化",
+        Duration = 3
+    })
+end)
