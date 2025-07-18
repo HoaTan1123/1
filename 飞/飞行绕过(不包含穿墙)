@@ -1,0 +1,37 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+
+task.spawn(function()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+
+    local targetHeight = RootPart.Position.Y
+    RunService.Heartbeat:Connect(function()
+        local currentPos = RootPart.Position
+        if math.abs(currentPos.Y - targetHeight) > 0.1 then
+            RootPart.CFrame = CFrame.new(Vector3.new(
+                currentPos.X,
+                targetHeight,
+                currentPos.Z
+            ))
+        end
+        RootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        RootPart.AssemblyAngularVelocity = Vector3.new(0,0,0)
+    end)
+
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part:SetNetworkOwner(Player)
+        end
+    end
+end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✅ 启动成功",
+    Text = "启动飞行 | 无高度限制",
+    Duration = 3
+})
