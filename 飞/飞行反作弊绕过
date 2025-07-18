@@ -1,111 +1,91 @@
-local Player = game:GetService("Players").LocalPlayer
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
-task.wait(math.random(3, 7))
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
 
-local Notification = function(title, text, duration)
+local originalCollision = {}
+for _, part in pairs(Character:GetDescendants()) do
+    if part:IsA("BasePart") then
+        originalCollision[part] = part.CanCollide
+    end
+end
+
+local isNoClipActive = false
+local affectedParts = {}
+
+local function enableNoClip()
+    if isNoClipActive then return end
+    isNoClipActive = true
+    for part, _ in pairs(originalCollision) do
+        if part and part.Parent then
+            part.CanCollide = false
+        end
+    end
+end
+
+local function disableNoClip()
+    if not isNoClipActive then return end
+    isNoClipActive = false
+    for part, collide in pairs(originalCollision) do
+        if part and part.Parent then
+            part.CanCollide = collide
+        end
+    end
+end
+
+local function showNotification(title, text)
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = title,
         Text = text,
-        Duration = duration or 3
+        Duration = 5
     })
 end
 
-Notification("🛠️ 系统初始化", "正在加载反检测模块...")
-
-local Character = Player.Character
-if not Character then
-    for _ = 1, 30 do
-        Character = Player.Character
-        if Character then break end
-        task.wait(0.1)
-    end
-    if not Character then 
-        Character = Player.CharacterAdded:Wait()
-        Notification("🔍 角色加载", "正在等待角色完全初始化...", 2)
-    end
-end
-
-local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 5)
-local RootPart = Character:FindFirstChild("HumanoidRootPart") or Character:FindFirstChild("UpperTorso")
-
-Notification("⚙️ 物理引擎劫持", "正在解除碰撞限制...")
-
-for _, part in pairs(Character:GetDescendants()) do
-    if part:IsA("BasePart") then
-        part:SetNetworkOwner(Player)
-        part.CanCollide = false
-        part.CanTouch = false
-        task.wait()
-    end
-end
-
-local function showActiveNotification()
-    Notification("✅ 系统激活成功", [[
-    飞行穿墙模式已就绪
-    ► 碰撞系统已解除
-    ► 反检测模块运行中
-    ]], 5)
-    
-    
-    local hint = Instance.new("TextLabel")
-    hint.Text = "🛡️ 反检测系统运行中"
-    hint.TextColor3 = Color3.fromRGB(0, 255, 0)
-    hint.BackgroundTransparency = 0.7
-    hint.Size = UDim2.new(0.2, 0, 0.05, 0)
-    hint.Position = UDim2.new(0.79, 0, 0.95, 0)
-    hint.Parent = game:GetService("CoreGui")
-    
-    
-    delay(10, function()
-        for i = 1, 20 do
-            hint.TextTransparency = i/20
-            task.wait(0.05)
+local function smoothFlying()
+    Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+    RunService.Heartbeat:Connect(function()
+        if not RootPart or not Humanoid then return end
+        local cam = workspace.CurrentCamera
+        if cam then
+            RootPart.CFrame = CFrame.new(RootPart.Position, RootPart.Position + cam.CFrame.LookVector)
         end
-        hint:Destroy()
+        if Humanoid:GetState() == Enum.HumanoidStateType.Flying then
+            enableNoClip()
+        else
+            disableNoClip()
+        end
     end)
 end
 
-coroutine.wrap(function()
-    
-    task.wait(2)
-    showActiveNotification()
-    
-    while task.wait(0.5) do
-        
-        if math.random() < 0.15 then
-            Humanoid.Jump = true
-        end
-        
-        
-        if Humanoid:GetState() == Enum.HumanoidStateType.Flying then
-            
-            RootPart.AssemblyLinearVelocity = Vector3.new(
-                math.random(-1, 1),
-                0.05,
-                math.random(-1, 1)
-        end
-    end
-end)()
-
-local penetrateActive = false
 RunService.Stepped:Connect(function()
-    local shouldPenetrate = Humanoid:GetState() == Enum.HumanoidStateType.Flying
-    
-    if shouldPenetrate ~= penetrateActive then
-        penetrateActive = shouldPenetrate
-        Notification(penetrateActive and "🚀 穿墙模式激活" or "🛑 穿墙模式关闭", 
-            penetrateActive and "碰撞已解除" or "碰撞已恢复", 2)
-    end
-    
-    for _, part in pairs(workspace:GetPartsInPart(RootPart)) do
-        if part.CanCollide and shouldPenetrate then
-            part.CanCollide = false
-            delay(1, function() part.CanCollide = true end)
+    if isNoClipActive then
+        for _, part in pairs(workspace:GetPartsInPart(RootPart)) do
+            if part:IsA("BasePart") and part.CanCollide then
+                table.insert(affectedParts, part)
+                part.CanCollide = false
+            end
         end
+        task.delay(0.5, function()
+            for _, part in pairs(affectedParts) do
+                if part and part.Parent then
+                    part.CanCollide = true
+                end
+            end
+            affectedParts = {}
+        end)
     end
 end)
 
-task.delay(3, function()
-    Notification("🌟 系统就绪", "所有模块已正常加载", 3)
-end)
+smoothFlying()
+showNotification("✅ 飞行穿墙系统", "已成功加载！\n飞行时自动穿墙")
+
+wait(1)
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✅ 启动成功",
+    Text = "正在绕过反作弊",
+    Duration = 7
+})
