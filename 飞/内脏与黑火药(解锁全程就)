@@ -1,0 +1,28 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer -- 确保在LocalScript中运行
+
+while not player do
+    task.wait()
+    player = Players.LocalPlayer
+end
+
+local achievements = player:FindFirstChild("HiddenAchievements")
+
+if achievements then
+    
+    for _, item in ipairs(achievements:GetChildren()) do
+        if item:IsA("BoolValue") then
+            item.Value = true
+            print(item.Name.." 已设为 true")
+        elseif item:IsA("IntValue") or item:IsA("NumberValue") then
+            item.Value = 1
+            print(item.Name.." 已设为 1")
+        elseif item:IsA("StringValue") then
+            item.Value = "true"
+            print(item.Name.." 已设为 'true'")
+        end
+    end
+    print("所有成就已解锁！")
+else
+    warn("找不到 HiddenAchievements 文件夹！")
+end​
