@@ -1,55 +1,71 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
 
-local function ForceStart()
-    local Character = Player.Character
-    if not Character then
-        for i = 1, 30 do
-            if Player.Character then break end
-            Player.CharacterAdded:Wait()
-        end
-        Character = Player.Character
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+for _, part in pairs(Character:GetDescendants()) do
+    if part:IsA("BasePart") then
+        part.CanCollide = false
+        part.CanTouch = false
+        part:SetNetworkOwner(Player)
     end
+end
 
-    local Humanoid = Character:FindFirstChildOfClass("Humanoid") or Character:WaitForChild("Humanoid", 5)
-    local RootPart = Character:FindFirstChild("HumanoidRootPart") or Character:WaitForChild("HumanoidRootPart", 5)
+local positionBuffer = {}
+for i = 1, 8 do table.insert(positionBuffer, RootPart.Position) end
 
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+RunService.Heartbeat:Connect(function()
+    RootPart.CFrame = RootPart.CFrame * CFrame.new(0, 0.01, 0)
+    task.wait(0.05)
+    RootPart.CFrame = RootPart.CFrame * CFrame.new(0, -0.01, 0)
+    
+    table.insert(positionBuffer, 1, RootPart.Position)
+    if #positionBuffer > 8 then table.remove(positionBuffer) end
+    
+    local avgPos = Vector3.new()
+    for _, pos in ipairs(positionBuffer) do avgPos = avgPos + pos end
+    avgPos = avgPos / #positionBuffer
+    
+    if (RootPart.Position - avgPos).Magnitude > 1.2 then
+        RootPart.CFrame = CFrame.new(avgPos)
+    end
+    
+    if math.random() < 0.15 then
+        RootPart.Velocity = Vector3.new(
+            math.random(-0.3, 0.3),
+            math.random(0, 0.2),
+            math.random(-0.3, 0.3)
+    end
+end)
 
-    RunService.Stepped:Connect(function()
-        local isFlying = Humanoid:GetState() == Enum.HumanoidStateType.Flying
-        for _, part in pairs(Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = not isFlying
+RunService.Stepped:Connect(function()
+    if Humanoid:GetState() == Enum.HumanoidStateType.Flying then
+        for _, part in pairs(workspace:GetPartsInPart(RootPart)) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+                delay(0.6, function()
+                    if part and part.Parent then
+                        part.CanCollide = true
+                    end
+                end)
             end
         end
-    end)
-
-    local lastPos = RootPart.Position
-    RunService.Heartbeat:Connect(function()
-        if (RootPart.Position - lastPos).Magnitude > 150 then
-            RootPart.CFrame = CFrame.new(lastPos + Vector3.new(0, 3, 0))
-        else
-            lastPos = RootPart.Position
-        end
-    end)
-
-    for i = 1, 3 do
-        game:GetService("StarterGui"):SetCore("SendNotification",{
-            Title = "✅ 绕过系统激活",
-            Text = "状态正常\n飞行时自动穿墙",
-            Duration = 5
-        })
-        task.wait(0.5)
     end
-end
+end)
 
-local success, err = pcall(ForceStart)
-if not success then
-    warn("反作弊初始化失败: "..tostring(err))
-    game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "⚠️ 严重错误",
-        Text = "请重新执行脚本\n"..tostring(err):sub(1, 50),
-        Duration = 10
-    })
-end
+task.spawn(function()
+    while task.wait(math.random(0.5, 1.2)) do
+        Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        if math.random() < 0.3 then
+            Humanoid.Jump = true
+        end
+    end
+end)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "✅ 系统就绪",
+    Text = "所有功能已激活",
+    Duration = 3
+})
