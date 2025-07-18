@@ -1,91 +1,56 @@
-local Players = game:GetService("Players")
+local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
-local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
-local originalCollision = {}
-for _, part in pairs(Character:GetDescendants()) do
-    if part:IsA("BasePart") then
-        originalCollision[part] = part.CanCollide
-    end
-end
-
-local isNoClipActive = false
-local affectedParts = {}
-
-local function enableNoClip()
-    if isNoClipActive then return end
-    isNoClipActive = true
-    for part, _ in pairs(originalCollision) do
-        if part and part.Parent then
-            part.CanCollide = false
-        end
-    end
-end
-
-local function disableNoClip()
-    if not isNoClipActive then return end
-    isNoClipActive = false
-    for part, collide in pairs(originalCollision) do
-        if part and part.Parent then
-            part.CanCollide = collide
-        end
-    end
-end
-
-local function showNotification(title, text)
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = title,
-        Text = text,
-        Duration = 5
-    })
-end
-
-local function smoothFlying()
-    Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
-    RunService.Heartbeat:Connect(function()
-        if not RootPart or not Humanoid then return end
-        local cam = workspace.CurrentCamera
-        if cam then
-            RootPart.CFrame = CFrame.new(RootPart.Position, RootPart.Position + cam.CFrame.LookVector)
-        end
-        if Humanoid:GetState() == Enum.HumanoidStateType.Flying then
-            enableNoClip()
-        else
-            disableNoClip()
-        end
-    end)
-end
-
-RunService.Stepped:Connect(function()
-    if isNoClipActive then
-        for _, part in pairs(workspace:GetPartsInPart(RootPart)) do
-            if part:IsA("BasePart") and part.CanCollide then
-                table.insert(affectedParts, part)
-                part.CanCollide = false
-            end
-        end
-        task.delay(0.5, function()
-            for _, part in pairs(affectedParts) do
-                if part and part.Parent then
-                    part.CanCollide = true
-                end
-            end
-            affectedParts = {}
-        end)
+Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+RunService.Heartbeat:Connect(function()
+    if Humanoid:GetState() ~= Enum.HumanoidStateType.Flying then
+        Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
     end
 end)
 
-smoothFlying()
-showNotification("✅ 飞行穿墙系统", "已成功加载！\n飞行时自动穿墙")
+RunService.Heartbeat:Connect(function()
+    local cam = workspace.CurrentCamera
+    if cam and RootPart then
+        RootPart.CFrame = CFrame.new(RootPart.Position, RootPart.Position + cam.CFrame.LookVector)
+    end
+end)
 
-wait(1)
+for _, part in pairs(Character:GetDescendants()) do
+    if part:IsA("BasePart") then
+        part.CanCollide = false
+        part.CanTouch = false
+    end
+end
+
+RunService.Stepped:Connect(function()
+    for _, part in pairs(workspace:GetPartsInPart(RootPart)) do
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+            task.delay(0.5, function()
+                if part and part.Parent then
+                    part.CanCollide = true
+                end
+            end)
+        end
+    end
+end)
+
+local lastValidPos = RootPart.Position
+RunService.Heartbeat:Connect(function()
+    if (RootPart.Position - lastValidPos).Magnitude > 15 then
+        RootPart.CFrame = CFrame.new(lastValidPos)
+    else
+        lastValidPos = RootPart.Position
+    end
+end)
+
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "✅ 启动成功",
     Text = "正在绕过反作弊",
-    Duration = 7
+    Duration = 3
 })
