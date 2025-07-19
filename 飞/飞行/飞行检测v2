@@ -1,1 +1,108 @@
+local Player = game:GetService("Players").LocalPlayer
+local RunService = game:GetService("RunService")
+local StatsService = game:GetService("Stats")
 
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0.4, 0, 0.3, 0)
+frame.Position = UDim2.new(0.05, 0, 0.7, 0)
+frame.BackgroundTransparency = 0.7
+frame.BackgroundColor3 = Color3.new(0, 0, 0)
+frame.Parent = screenGui
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 1, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.Font = Enum.Font.SourceSansBold
+label.TextSize = 14
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextYAlignment = Enum.TextYAlignment.Top
+label.Parent = frame
+
+local CRITICAL_HEIGHT = 15
+local SAFE_HEIGHT = 50
+
+local diagnostics = {
+    lastUpdate = 0,
+    corrections = 0,
+    currentMode = "等待启动",
+    currentHeight = 0,
+    threshold = 0,
+    currentSpeed = 0,
+    networkPing = 0,
+    lastPosition = nil,
+    lastSpeedCheck = 0
+}
+
+local function updateDisplay()
+    label.Text = string.format([[
+🚀 飞行诊断面板
+----------------------------
+🛡️ 当前模式: %s
+📏 当前高度: %.1f米
+⚖️ 当前阈值: %.1f米
+📍 位置纠正: %d次
+🏎️ 当前速度: %.1f 单位/秒
+📶 网络延迟: %d ms
+]], 
+diagnostics.currentMode,
+diagnostics.currentHeight,
+diagnostics.threshold,
+diagnostics.corrections,
+diagnostics.currentSpeed,
+diagnostics.networkPing)
+end
+
+task.spawn(function()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+    local lastStablePos = RootPart.Position
+    diagnostics.lastPosition = RootPart.Position
+    diagnostics.lastSpeedCheck = os.clock()
+
+    RunService.Heartbeat:Connect(function()
+        diagnostics.networkPing = StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
+        
+        local currentTime = os.clock()
+        if currentTime - diagnostics.lastSpeedCheck >= 0.1 then
+            local deltaTime = currentTime - diagnostics.lastSpeedCheck
+            diagnostics.currentSpeed = (RootPart.Position - diagnostics.lastPosition).Magnitude / deltaTime
+            diagnostics.lastPosition = RootPart.Position
+            diagnostics.lastSpeedCheck = currentTime
+        end
+
+        diagnostics.currentHeight = RootPart.Position.Y - workspace.Terrain.Size.Y
+        diagnostics.threshold = 10
+        
+        if diagnostics.currentHeight < CRITICAL_HEIGHT then
+            diagnostics.currentMode = "低空严格"
+            diagnostics.threshold = 5
+            Humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+        elseif diagnostics.currentHeight < SAFE_HEIGHT then
+            diagnostics.currentMode = "中空标准"
+            diagnostics.threshold = 15
+        else
+            diagnostics.currentMode = "高空自由"
+            diagnostics.threshold = 30
+        end
+
+        if (RootPart.Position - lastStablePos).Magnitude > diagnostics.threshold then
+            diagnostics.corrections = diagnostics.corrections + 1
+            RootPart.CFrame = CFrame.new(lastStablePos)
+        else
+            lastStablePos = RootPart.Position
+        end
+
+        if os.time() - diagnostics.lastUpdate >= 0.5 then
+            updateDisplay()
+            diagnostics.lastUpdate = os.time()
+        end
+    end)
+end)
+
+updateDisplay()
