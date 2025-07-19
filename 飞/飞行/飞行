@@ -1,71 +1,94 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
 
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = game:GetService("CoreGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0.4, 0, 0.3, 0)
+frame.Position = UDim2.new(0.05, 0, 0.7, 0)
+frame.BackgroundTransparency = 0.7
+frame.BackgroundColor3 = Color3.new(0, 0, 0)
+frame.Parent = screenGui
+
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 1, 0)
+label.BackgroundTransparency = 1
+label.TextColor3 = Color3.new(1, 1, 1)
+label.Font = Enum.Font.SourceSansBold
+label.TextSize = 14
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextYAlignment = Enum.TextYAlignment.Top
+label.Text = "飞行诊断数据加载中..."
+label.Parent = frame
 
 local diagnostics = {
-    lastPosition = RootPart.Position,
-    stateChanges = 0,
+    lastUpdate = 0,
     corrections = 0,
-    physicsResets = 0
+    physicsResets = 0,
+    maxDisplacement = 0,
+    currentPing = 0,
+    lastPosition = nil
 }
 
-RunService.Heartbeat:Connect(function()
-    local currentState = Humanoid:GetState()
-    local isFlying = currentState == Enum.HumanoidStateType.Flying
+local function updateDisplay()
+    local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+    diagnostics.currentPing = ping
     
-    
-    if isFlying then
-        
-        local displacement = (RootPart.Position - diagnostics.lastPosition).Magnitude
-        if displacement > 50 then
-            print("⚠️ 异常位移:", displacement, "米")
-        end
-        diagnostics.lastPosition = RootPart.Position
+    label.Text = string.format([[
+🚀 飞行诊断面板
+----------------------------
+📍 位置纠正: %d次
+⚡ 物理重置: %d次
+📶 网络延迟: %dms
+🚨 最大位移: %.1f米
+]], 
+diagnostics.corrections,
+diagnostics.physicsResets,
+ping,
+diagnostics.maxDisplacement)
+end
 
-        
-        local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
-        if ping > 300 then
-            print("⚠️ 网络延迟过高:", ping, "ms") 
-        end
+RunService.Heartbeat:Connect(function()
+    local now = os.time()
+    if now - diagnostics.lastUpdate >= 1 then
+        updateDisplay()
+        diagnostics.lastUpdate = now
+        diagnostics.maxDisplacement = 0
     end
+    
+    if not Player.Character then return end
+    local rootPart = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    local displacement = (rootPart.Position - (diagnostics.lastPosition or rootPart.Position)).Magnitude
+    diagnostics.maxDisplacement = math.max(diagnostics.maxDisplacement, displacement)
+    diagnostics.lastPosition = rootPart.Position
+    diagnostics.currentPing = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
 end)
 
-local lastStablePos = RootPart.Position
+local lastStablePos = Player.Character.HumanoidRootPart.Position
 RunService.Heartbeat:Connect(function()
-    if Humanoid:GetState() ~= Enum.HumanoidStateType.Flying then return end
-
+    local rootPart = Player.Character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
     
-    if (RootPart.Position - lastStablePos).Magnitude > 15 then
+    if (rootPart.Position - lastStablePos).Magnitude > 15 then
         diagnostics.corrections = diagnostics.corrections + 1
-        print("🛠️ 位置纠正触发 #"..diagnostics.corrections)
-        RootPart.CFrame = CFrame.new(lastStablePos)
+        rootPart.CFrame = CFrame.new(lastStablePos)
     else
-        lastStablePos = RootPart.Position
+        lastStablePos = rootPart.Position
     end
-
     
-    if RootPart.AssemblyLinearVelocity.Magnitude > 10 then
+    if rootPart.AssemblyLinearVelocity.Magnitude > 10 then
         diagnostics.physicsResets = diagnostics.physicsResets + 1
-        print("⚡ 物理重置 #"..diagnostics.physicsResets)
-        RootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        rootPart.AssemblyLinearVelocity = Vector3.new(0,0,0)
     end
 end)
 
-game:GetService("UserInputService").InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.F5 then
-        print("\n=== 飞行诊断报告 ===")
-        print("位置纠正次数:", diagnostics.corrections)
-        print("物理重置次数:", diagnostics.physicsResets)
-        print("当前网络延迟:", game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue().."ms")
-        print("====================")
-    end
-end)
-
+updateDisplay()
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ 激活",
-    Text = "按F5查看飞行数据",
-    Duration = 5
+    Title = "✅ 诊断已开启",
+    Text = "悬浮窗显示实时数据",
+    Duration = 3
 })
