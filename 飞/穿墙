@@ -37,7 +37,7 @@ end
 
 if not _G.IY_LOADED then
     game:GetService("StarterGui"):SetCore("SendNotification",{
-        Title = "NOCLIP 就绪",
+        Title = "穿墙绕过成功",
         Text = "使用;noclip命令激活穿墙",
         Duration = 3
     })
