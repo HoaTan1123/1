@@ -1,64 +1,47 @@
 local Player = game:GetService("Players").LocalPlayer
 local RunService = game:GetService("RunService")
 
-local function AdvancedNoclip(character)
-    for _, part in pairs(character:GetDescendants()) do
+local function SetupNoclip()
+    local Character = Player.Character or Player.CharacterAdded:Wait()
+    local RootPart = Character:WaitForChild("HumanoidRootPart")
+
+    for _, part in pairs(Character:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = false
             part.CanTouch = false
             part.CanQuery = false
         end
     end
-    
-    local noclipConnection
-    noclipConnection = RunService.Stepped:Connect(function()
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+
+    local lastPosition = RootPart.Position
+    RunService.Heartbeat:Connect(function(delta)
+        local maxSpeed = 15
+        local velocity = (RootPart.Position - lastPosition).Magnitude / delta
         
-        for _, part in pairs(workspace:GetPartsInRadius(root.Position, 5)) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-                part.CanTouch = false
-                part.CanQuery = false
-                
-                if not part:FindFirstChild("NoclipModified") then
-                    local tag = Instance.new("BoolValue")
-                    tag.Name = "NoclipModified"
-                    tag.Parent = part
-                end
-            end
+        if velocity > maxSpeed then
+            RootPart.CFrame = CFrame.new(lastPosition + (RootPart.Position - lastPosition).Unit * maxSpeed * delta)
         end
+        
+        lastPosition = RootPart.Position
+        RootPart:SetNetworkOwner(nil)
     end)
-    
-    character.DescendantAdded:Connect(function(part)
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-            part.CanTouch = false
-            part.CanQuery = false
-        end
-    end)
-    
-    return noclipConnection
+
+    if _G.IY_LOADED then
+        game:GetService("StarterGui"):SetCore("SendNotification",{
+            Title = "NOCLIP 激活",
+            Text = "已通过Infinite Yield绕过检测",
+            Duration = 3
+        })
+    end
 end
 
-local function Main()
-    local character = Player.Character or Player.CharacterAdded:Wait()
-    local connection = AdvancedNoclip(character)
-    
-    Player.CharacterAdded:Connect(function(newChar)
-        if connection then
-            connection:Disconnect()
-        end
-        connection = AdvancedNoclip(newChar)
-    end)
+if not _G.IY_LOADED then
+    game:GetService("StarterGui"):SetCore("SendNotification",{
+        Title = "NOCLIP 就绪",
+        Text = "使用;noclip命令激活穿墙",
+        Duration = 3
+    })
 end
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ 穿墙已激活 [v0.15.5]",
-    Text = "高级穿墙模式已启用\n自动处理5米内所有障碍物",
-    Duration = 5,
-    Button1 = "确定",
-    Icon = "rbxassetid://6724403529"
-})
-
-task.delay(1, Main)
+Player.CharacterAdded:Connect(SetupNoclip)
+task.delay(1, SetupNoclip)
