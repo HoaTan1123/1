@@ -1,0 +1,524 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+local Window = Rayfield:CreateWindow({
+    Name = "透视脚本",
+    LoadingTitle = "透视加载中...",
+    LoadingSubtitle = "透视专版",
+    KeySystem = false
+})
+
+local Tab = Window:CreateTab("透视功能", 4483362458)
+
+local ESPEnabled = false
+local TracerEnabled = true
+local SkeletonEnabled = true
+local HighlightEnabled = true
+local ESPTeamCheck = false
+local BackIndicatorEnabled = true  -- 背后偷袭提示开关
+
+Tab:CreateToggle({Name="透视总开关", CurrentValue=false, Callback=function(v) ESPEnabled = v end})
+Tab:CreateToggle({Name="天线绘制", CurrentValue=true, Callback=function(v) TracerEnabled = v end})
+Tab:CreateToggle({Name="骨骼绘制", CurrentValue=true, Callback=function(v) SkeletonEnabled = v end})
+Tab:CreateToggle({Name="内透Highlight", CurrentValue=true, Callback=function(v) HighlightEnabled = v end})
+Tab:CreateToggle({Name="透视亮队友（默认关闭）", CurrentValue=false, Callback=function(v) ESPTeamCheck = v end})
+Tab:CreateToggle({Name="背后偷袭提示", CurrentValue=true, Callback=function(v) BackIndicatorEnabled = v end})
+
+local Tracers = {}
+local Skeletons = {}
+local Highlights = {}
+local BackIndicators = {}  -- 背后偷袭指示器
+local PlayersCharacterConnections = {}
+
+local Bones = {
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    {"LowerTorso", "LeftUpperLeg"}, {"LowerTorso", "RightUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"}, {"RightUpperLeg", "RightLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"}, {"RightLowerLeg", "RightFoot"},
+    {"UpperTorso", "LeftUpperArm"}, {"UpperTorso", "RightUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"}, {"RightUpperArm", "RightLowerArm"},
+    {"LeftLowerArm", "LeftHand"}, {"RightLowerArm", "RightHand"}
+}
+
+local DeathCheckTimer = 0
+local DeathCheckInterval = 0.2
+local PlayerDeathStatus = {}
+local ESPRefreshTimer = 0
+local ESPRefreshInterval = 0.2
+
+local function CleanupPlayerESP(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    
+    if BackIndicators[plr] then
+        BackIndicators[plr]:Remove()
+        BackIndicators[plr] = nil
+    end
+    
+    if PlayersCharacterConnections[plr] then
+        PlayersCharacterConnections[plr]:Disconnect()
+        PlayersCharacterConnections[plr] = nil
+    end
+    
+    PlayerDeathStatus[plr] = nil
+end
+
+local function CreateTracer(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Transparency = 1
+    Tracers[plr] = line
+end
+
+local function CreateSkeleton(plr)
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    
+    local bones = {}
+    for i = 1, #Bones do
+        local line = Drawing.new("Line")
+        line.Thickness = 2
+        line.Transparency = 1
+        table.insert(bones, line)
+    end
+    Skeletons[plr] = bones
+end
+
+local function CreateHighlight(plr)
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    
+    if plr and plr.Character then
+        local hl = Instance.new("Highlight")
+        hl.FillTransparency = 0.4
+        hl.OutlineTransparency = 0
+        hl.Parent = plr.Character
+        Highlights[plr] = hl
+    end
+end
+
+local function CreateBackIndicator(plr)
+    if BackIndicators[plr] then
+        BackIndicators[plr]:Remove()
+        BackIndicators[plr] = nil
+    end
+    
+    local triangle = Drawing.new("Triangle")
+    triangle.Thickness = 1
+    triangle.Filled = true
+    triangle.Transparency = 1
+    BackIndicators[plr] = triangle
+end
+
+local function RefreshPlayerESP(plr)
+    if not plr or not plr.Character or not plr.Character:FindFirstChild("Head") then
+        return
+    end
+    
+    if SkeletonEnabled then
+        CreateSkeleton(plr)
+    end
+    
+    if HighlightEnabled then
+        CreateHighlight(plr)
+    end
+end
+
+local function SetupPlayerESP(plr)
+    CleanupPlayerESP(plr)
+    
+    CreateTracer(plr)
+    CreateBackIndicator(plr)
+    if plr.Character then
+        CreateSkeleton(plr)
+        CreateHighlight(plr)
+    end
+    
+    PlayersCharacterConnections[plr] = plr.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        CreateSkeleton(plr)
+        CreateHighlight(plr)
+    end)
+end
+
+local function IsPlayerVisible(plr)
+    if not plr.Character then return false end
+    local head = plr.Character:FindFirstChild("Head")
+    if not head then return false end
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local ray = Workspace:Raycast(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position), rayParams)
+    
+    return ray and ray.Instance:IsDescendantOf(plr.Character)
+end
+
+local function GetPlayerColor(plr)
+    local isTeammate = plr.Team == LocalPlayer.Team
+    local isVisible = IsPlayerVisible(plr)
+    
+    if isTeammate then
+        return Color3.fromRGB(0, 255, 0)
+    else
+        if isVisible then
+            return Color3.fromRGB(255, 0, 0)
+        else
+            return Color3.fromRGB(255, 255, 0)
+        end
+    end
+end
+
+local function IsPlayerBehind(plr)
+    -- 判断玩家是否在背后
+    if not plr.Character or not LocalPlayer.Character then return false end
+    
+    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local theirRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+    
+    if not myRoot or not theirRoot then return false end
+    
+    -- 计算朝向向量
+    local lookVector = myRoot.CFrame.LookVector
+    local toEnemyVector = (theirRoot.Position - myRoot.Position).Unit
+    
+    -- 计算点积，如果为负值表示在背后
+    local dotProduct = lookVector:Dot(toEnemyVector)
+    return dotProduct < 0
+end
+
+local function UpdatePlayerDeathStatus()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        
+        local isDead = false
+        local char = plr.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        
+        if not char or not humanoid or humanoid.Health <= 0 then
+            isDead = true
+        end
+        
+        if PlayerDeathStatus[plr] ~= isDead then
+            PlayerDeathStatus[plr] = isDead
+            
+            if Tracers[plr] then
+                Tracers[plr].Visible = not isDead
+            end
+            if Skeletons[plr] then
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = not isDead
+                end
+            end
+            if Highlights[plr] then
+                Highlights[plr].Enabled = not isDead
+            end
+            if BackIndicators[plr] then
+                BackIndicators[plr].Visible = not isDead
+            end
+        end
+    end
+    
+    for plr, _ in pairs(PlayerDeathStatus) do
+        if not Players:FindFirstChild(plr.Name) then
+            CleanupPlayerESP(plr)
+        end
+    end
+end
+
+local function UpdateBackIndicator(plr)
+    if not BackIndicatorEnabled or not BackIndicators[plr] then return end
+    
+    if not plr.Character or not LocalPlayer.Character then
+        BackIndicators[plr].Visible = false
+        return
+    end
+    
+    -- 判断是否在背后
+    local isBehind = IsPlayerBehind(plr)
+    if not isBehind then
+        BackIndicators[plr].Visible = false
+        return
+    end
+    
+    local theirRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+    if not theirRoot then
+        BackIndicators[plr].Visible = false
+        return
+    end
+    
+    -- 计算距离
+    local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    
+    local distance = (myRoot.Position - theirRoot.Position).Magnitude
+    
+    -- 根据距离确定颜色和大小
+    local color, size, transparency
+    if distance < 20 then
+        color = Color3.fromRGB(255, 0, 0)  -- 近距离红色
+        size = 18
+        transparency = 0.2
+    elseif distance < 50 then
+        color = Color3.fromRGB(255, 165, 0)  -- 中距离橙色
+        size = 15
+        transparency = 0.4
+    else
+        color = Color3.fromRGB(255, 255, 0)  -- 远距离黄色
+        size = 12
+        transparency = 0.6
+    end
+    
+    -- 获取玩家在屏幕上的位置（即使不在屏幕上也能获取坐标）
+    local screenPos, onScreen = Camera:WorldToViewportPoint(theirRoot.Position)
+    
+    -- 将屏幕坐标限制在屏幕边缘
+    local viewportSize = Camera.ViewportSize
+    local centerX = viewportSize.X / 2
+    local centerY = viewportSize.Y / 2
+    
+    local direction = Vector2.new(screenPos.X - centerX, screenPos.Y - centerY)
+    local magnitude = direction.Magnitude
+    
+    if magnitude > 0 then
+        direction = direction / magnitude
+        
+        -- 计算屏幕边缘的点
+        local maxLength = math.min(centerX, centerY) - size
+        local edgePos = Vector2.new(
+            centerX + direction.X * maxLength,
+            centerY + direction.Y * maxLength
+        )
+        
+        -- 计算三角形顶点
+        local point1 = edgePos + Vector2.new(0, -size)
+        local point2 = edgePos + Vector2.new(-size/2, size/2)
+        local point3 = edgePos + Vector2.new(size/2, size/2)
+        
+        -- 旋转三角形指向敌人方向
+        local angle = math.atan2(direction.Y, direction.X)
+        local cos = math.cos(angle)
+        local sin = math.sin(angle)
+        
+        local function rotatePoint(point)
+            local x = point.X - edgePos.X
+            local y = point.Y - edgePos.Y
+            return Vector2.new(
+                x * cos - y * sin + edgePos.X,
+                x * sin + y * cos + edgePos.Y
+            )
+        end
+        
+        point1 = rotatePoint(point1)
+        point2 = rotatePoint(point2)
+        point3 = rotatePoint(point3)
+        
+        -- 设置三角形属性
+        BackIndicators[plr].PointA = point1
+        BackIndicators[plr].PointB = point2
+        BackIndicators[plr].PointC = point3
+        BackIndicators[plr].Color = color
+        BackIndicators[plr].Transparency = transparency
+        BackIndicators[plr].Visible = true
+    else
+        BackIndicators[plr].Visible = false
+    end
+end
+
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then
+        SetupPlayerESP(plr)
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= LocalPlayer then
+        SetupPlayerESP(plr)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    CleanupPlayerESP(plr)
+end)
+
+RunService.Heartbeat:Connect(function(deltaTime)
+    DeathCheckTimer = DeathCheckTimer + deltaTime
+    ESPRefreshTimer = ESPRefreshTimer + deltaTime
+    
+    if DeathCheckTimer >= DeathCheckInterval then
+        DeathCheckTimer = 0
+        UpdatePlayerDeathStatus()
+    end
+    
+    if ESPRefreshTimer >= ESPRefreshInterval then
+        ESPRefreshTimer = 0
+        if ESPEnabled then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr == LocalPlayer then continue end
+                if not PlayerDeathStatus[plr] and plr.Character and plr.Character:FindFirstChild("Head") then
+                    if ESPTeamCheck == false and plr.Team == LocalPlayer.Team then
+                    else
+                        RefreshPlayerESP(plr)
+                    end
+                end
+            end
+        end
+    end
+    
+    if not ESPEnabled then
+        for _, line in pairs(Tracers) do 
+            line.Visible = false 
+        end
+        for _, bones in pairs(Skeletons) do 
+            for _, bone in ipairs(bones) do 
+                bone.Visible = false 
+            end 
+        end
+        for _, hl in pairs(Highlights) do 
+            hl.Enabled = false 
+        end
+        for _, indicator in pairs(BackIndicators) do
+            indicator.Visible = false
+        end
+        return
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        
+        if not plr.Character or not plr.Character:FindFirstChild("Head") then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            if BackIndicators[plr] then BackIndicators[plr].Visible = false end
+            continue
+        end
+        
+        if PlayerDeathStatus[plr] == true then 
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            if BackIndicators[plr] then BackIndicators[plr].Visible = false end
+            continue 
+        end
+        
+        if ESPTeamCheck == false and plr.Team == LocalPlayer.Team then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            if BackIndicators[plr] then BackIndicators[plr].Visible = false end
+            continue
+        end
+
+        local head = plr.Character.Head
+        local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        local playerColor = GetPlayerColor(plr)
+
+        if TracerEnabled then
+            if not Tracers[plr] then CreateTracer(plr) end
+            if onScreen then
+                Tracers[plr].From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                Tracers[plr].To = Vector2.new(headPos.X, headPos.Y)
+                Tracers[plr].Color = playerColor
+                Tracers[plr].Visible = true
+            else
+                Tracers[plr].Visible = false
+            end
+        else
+            if Tracers[plr] then Tracers[plr].Visible = false end
+        end
+
+        if SkeletonEnabled and onScreen then
+            if not Skeletons[plr] then CreateSkeleton(plr) end
+            local bones = Skeletons[plr]
+            for i, bone in ipairs(Bones) do
+                local p1 = plr.Character:FindFirstChild(bone[1])
+                local p2 = plr.Character:FindFirstChild(bone[2])
+                if p1 and p2 then
+                    local pos1 = Camera:WorldToViewportPoint(p1.Position)
+                    local pos2 = Camera:WorldToViewportPoint(p2.Position)
+                    bones[i].From = Vector2.new(pos1.X, pos1.Y)
+                    bones[i].To = Vector2.new(pos2.X, pos2.Y)
+                    bones[i].Color = playerColor
+                    bones[i].Visible = true
+                else
+                    bones[i].Visible = false
+                end
+            end
+        elseif Skeletons[plr] then
+            for _, bone in ipairs(Skeletons[plr]) do
+                bone.Visible = false
+            end
+        end
+
+        if HighlightEnabled then
+            if not Highlights[plr] then CreateHighlight(plr) end
+            if Highlights[plr] then
+                Highlights[plr].FillColor = playerColor
+                if plr.Team == LocalPlayer.Team then
+                    Highlights[plr].OutlineColor = Color3.fromRGB(0, 200, 0)
+                else
+                    if IsPlayerVisible(plr) then
+                        Highlights[plr].OutlineColor = Color3.fromRGB(200, 0, 0)
+                    else
+                        Highlights[plr].OutlineColor = Color3.fromRGB(200, 200, 0)
+                    end
+                end
+                Highlights[plr].Enabled = true
+            end
+        end
+        
+        -- 更新背后偷袭提示
+        if BackIndicatorEnabled then
+            if not BackIndicators[plr] then CreateBackIndicator(plr) end
+            UpdateBackIndicator(plr)
+        elseif BackIndicators[plr] then
+            BackIndicators[plr].Visible = false
+        end
+    end
+end)
+
+Rayfield:Notify({Title="透视脚本 就绪", Content="透视已启动", Duration=8})
