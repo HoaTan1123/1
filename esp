@@ -30,6 +30,7 @@ Tab:CreateToggle({Name="透视亮队友（默认关闭）", CurrentValue=false, 
 local Tracers = {}
 local Skeletons = {}
 local Highlights = {}
+local PlayersCharacterConnections = {}
 
 local Bones = {
     {"Head", "UpperTorso"},
@@ -45,23 +46,59 @@ local Bones = {
 local DeathCheckTimer = 0
 local DeathCheckInterval = 0.2
 local PlayerDeathStatus = {}
+local ESPRefreshTimer = 0
+local ESPRefreshInterval = 0.2
+
+local function CleanupPlayerESP(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    
+    if PlayersCharacterConnections[plr] then
+        PlayersCharacterConnections[plr]:Disconnect()
+        PlayersCharacterConnections[plr] = nil
+    end
+    
+    PlayerDeathStatus[plr] = nil
+end
 
 local function CreateTracer(plr)
-    if Tracers[plr] then return end
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    
     local line = Drawing.new("Line")
     line.Thickness = 2
-    line.Color = Color3.fromRGB(255,0,0)
     line.Transparency = 1
     Tracers[plr] = line
 end
 
 local function CreateSkeleton(plr)
-    if Skeletons[plr] then return end
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    
     local bones = {}
-    for _ in Bones do
+    for i = 1, #Bones do
         local line = Drawing.new("Line")
         line.Thickness = 2
-        line.Color = Color3.fromRGB(255,255,255)
         line.Transparency = 1
         table.insert(bones, line)
     end
@@ -69,18 +106,76 @@ local function CreateSkeleton(plr)
 end
 
 local function CreateHighlight(plr)
-    if not HighlightEnabled or Highlights[plr] then return end
-    task.delay(math.random(3,7), function()
-        if plr.Character then
-            local hl = Instance.new("Highlight")
-            hl.FillColor = Color3.fromRGB(0,100,255)
-            hl.OutlineColor = Color3.fromRGB(255,0,0)
-            hl.FillTransparency = 0.4
-            hl.OutlineTransparency = 0
-            hl.Parent = plr.Character
-            Highlights[plr] = hl
-        end
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    
+    if plr and plr.Character then
+        local hl = Instance.new("Highlight")
+        hl.FillTransparency = 0.4
+        hl.OutlineTransparency = 0
+        hl.Parent = plr.Character
+        Highlights[plr] = hl
+    end
+end
+
+local function RefreshPlayerESP(plr)
+    if not plr or not plr.Character or not plr.Character:FindFirstChild("Head") then
+        return
+    end
+    
+    if SkeletonEnabled then
+        CreateSkeleton(plr)
+    end
+    
+    if HighlightEnabled then
+        CreateHighlight(plr)
+    end
+end
+
+local function SetupPlayerESP(plr)
+    CleanupPlayerESP(plr)
+    
+    CreateTracer(plr)
+    if plr.Character then
+        CreateSkeleton(plr)
+        CreateHighlight(plr)
+    end
+    
+    PlayersCharacterConnections[plr] = plr.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        CreateSkeleton(plr)
+        CreateHighlight(plr)
     end)
+end
+
+local function IsPlayerVisible(plr)
+    if not plr.Character then return false end
+    local head = plr.Character:FindFirstChild("Head")
+    if not head then return false end
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local ray = Workspace:Raycast(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position), rayParams)
+    
+    return ray and ray.Instance:IsDescendantOf(plr.Character)
+end
+
+local function GetPlayerColor(plr)
+    local isTeammate = plr.Team == LocalPlayer.Team
+    local isVisible = IsPlayerVisible(plr)
+    
+    if isTeammate then
+        return Color3.fromRGB(0, 255, 0)
+    else
+        if isVisible then
+            return Color3.fromRGB(255, 0, 0)
+        else
+            return Color3.fromRGB(255, 255, 0)
+        end
+    end
 end
 
 local function UpdatePlayerDeathStatus()
@@ -114,81 +209,158 @@ local function UpdatePlayerDeathStatus()
     
     for plr, _ in pairs(PlayerDeathStatus) do
         if not Players:FindFirstChild(plr.Name) then
-            PlayerDeathStatus[plr] = nil
+            CleanupPlayerESP(plr)
         end
     end
 end
 
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then
+        SetupPlayerESP(plr)
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= LocalPlayer then
+        SetupPlayerESP(plr)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    CleanupPlayerESP(plr)
+end)
+
 RunService.Heartbeat:Connect(function(deltaTime)
     DeathCheckTimer = DeathCheckTimer + deltaTime
+    ESPRefreshTimer = ESPRefreshTimer + deltaTime
     
     if DeathCheckTimer >= DeathCheckInterval then
         DeathCheckTimer = 0
         UpdatePlayerDeathStatus()
     end
     
+    if ESPRefreshTimer >= ESPRefreshInterval then
+        ESPRefreshTimer = 0
+        if ESPEnabled then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr == LocalPlayer then continue end
+                if not PlayerDeathStatus[plr] and plr.Character and plr.Character:FindFirstChild("Head") then
+                    if ESPTeamCheck == false and plr.Team == LocalPlayer.Team then
+                    else
+                        RefreshPlayerESP(plr)
+                    end
+                end
+            end
+        end
+    end
+    
     if not ESPEnabled then
-        for _, obj in pairs(Tracers) do obj.Visible = false end
-        for _, bones in pairs(Skeletons) do for _, l in bones do l.Visible = false end end
-        for _, hl in pairs(Highlights) do hl.Enabled = false end
+        for _, line in pairs(Tracers) do 
+            line.Visible = false 
+        end
+        for _, bones in pairs(Skeletons) do 
+            for _, bone in ipairs(bones) do 
+                bone.Visible = false 
+            end 
+        end
+        for _, hl in pairs(Highlights) do 
+            hl.Enabled = false 
+        end
         return
     end
 
     for _, plr in pairs(Players:GetPlayers()) do
-        if plr == LocalPlayer or not plr.Character or not plr.Character:FindFirstChild("Head") then continue end
+        if plr == LocalPlayer then continue end
         
-        if PlayerDeathStatus[plr] == true then continue end
+        if not plr.Character or not plr.Character:FindFirstChild("Head") then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue
+        end
+        
+        if PlayerDeathStatus[plr] == true then 
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue 
+        end
         
         if ESPTeamCheck == false and plr.Team == LocalPlayer.Team then
             if Tracers[plr] then Tracers[plr].Visible = false end
-            if Skeletons[plr] then for _, l in Skeletons[plr] do l.Visible = false end end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
             if Highlights[plr] then Highlights[plr].Enabled = false end
             continue
         end
 
         local head = plr.Character.Head
         local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        local playerColor = GetPlayerColor(plr)
 
-        if TracerEnabled and onScreen then
-            CreateTracer(plr)
-            Tracers[plr].From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
-            Tracers[plr].To = Vector2.new(headPos.X, headPos.Y)
-            Tracers[plr].Visible = true
+        if TracerEnabled then
+            if not Tracers[plr] then CreateTracer(plr) end
+            if onScreen then
+                Tracers[plr].From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                Tracers[plr].To = Vector2.new(headPos.X, headPos.Y)
+                Tracers[plr].Color = playerColor
+                Tracers[plr].Visible = true
+            else
+                Tracers[plr].Visible = false
+            end
+        else
+            if Tracers[plr] then Tracers[plr].Visible = false end
         end
 
-        if SkeletonEnabled then
-            CreateSkeleton(plr)
+        if SkeletonEnabled and onScreen then
+            if not Skeletons[plr] then CreateSkeleton(plr) end
             local bones = Skeletons[plr]
             for i, bone in ipairs(Bones) do
                 local p1 = plr.Character:FindFirstChild(bone[1])
                 local p2 = plr.Character:FindFirstChild(bone[2])
                 if p1 and p2 then
-                    local pos1, vis1 = Camera:WorldToViewportPoint(p1.Position)
-                    local pos2, vis2 = Camera:WorldToViewportPoint(p2.Position)
-                    if vis1 and vis2 then
-                        bones[i].From = Vector2.new(pos1.X, pos1.Y)
-                        bones[i].To = Vector2.new(pos2.X, pos2.Y)
-                        bones[i].Visible = true
-                    else
-                        bones[i].Visible = false
-                    end
+                    local pos1 = Camera:WorldToViewportPoint(p1.Position)
+                    local pos2 = Camera:WorldToViewportPoint(p2.Position)
+                    bones[i].From = Vector2.new(pos1.X, pos1.Y)
+                    bones[i].To = Vector2.new(pos2.X, pos2.Y)
+                    bones[i].Color = playerColor
+                    bones[i].Visible = true
+                else
+                    bones[i].Visible = false
                 end
+            end
+        elseif Skeletons[plr] then
+            for _, bone in ipairs(Skeletons[plr]) do
+                bone.Visible = false
             end
         end
 
         if HighlightEnabled then
-            CreateHighlight(plr)
-            if Highlights[plr] then Highlights[plr].Enabled = true end
-        end
-    end
-
-    for plr, _ in pairs(Tracers) do
-        if not Players:FindFirstChild(plr.Name) then
-            if Tracers[plr] then Tracers[plr]:Remove() end
-            Tracers[plr] = nil
-            Skeletons[plr] = nil
-            Highlights[plr] = nil
-            PlayerDeathStatus[plr] = nil
+            if not Highlights[plr] then CreateHighlight(plr) end
+            if Highlights[plr] then
+                Highlights[plr].FillColor = playerColor
+                if plr.Team == LocalPlayer.Team then
+                    Highlights[plr].OutlineColor = Color3.fromRGB(0, 200, 0)
+                else
+                    if IsPlayerVisible(plr) then
+                        Highlights[plr].OutlineColor = Color3.fromRGB(200, 0, 0)
+                    else
+                        Highlights[plr].OutlineColor = Color3.fromRGB(200, 200, 0)
+                    end
+                end
+                Highlights[plr].Enabled = true
+            end
         end
     end
 end)
