@@ -1,0 +1,522 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+local Window = Rayfield:CreateWindow({
+    Name = "透视脚本v1.5",
+    LoadingTitle = "透视加载中...",
+    LoadingSubtitle = "透视专版",
+    KeySystem = false
+})
+
+local Tab = Window:CreateTab("透视功能", 4483362458)
+
+local ESPEnabled = false
+local TracerEnabled = true
+local SkeletonEnabled = true
+local HighlightEnabled = true
+local ESPTeamCheck = false
+local WallCheckEnabled = false
+local EnhancedScanEnabled = false
+local TeamDetectionEnabled = true
+
+Tab:CreateToggle({Name="透视总开关", CurrentValue=false, Callback=function(v) ESPEnabled = v end})
+Tab:CreateToggle({Name="天线绘制", CurrentValue=true, Callback=function(v) TracerEnabled = v end})
+Tab:CreateToggle({Name="骨骼绘制", CurrentValue=true, Callback=function(v) SkeletonEnabled = v end})
+Tab:CreateToggle({Name="内透Highlight", CurrentValue=true, Callback=function(v) HighlightEnabled = v end})
+Tab:CreateToggle({Name="透视亮队友（默认关闭）", CurrentValue=false, Callback=function(v) ESPTeamCheck = v end})
+Tab:CreateToggle({Name="墙后检测（可能卡顿）", CurrentValue=false, Callback=function(v) WallCheckEnabled = v end})
+Tab:CreateToggle({Name="增强扫描（可能变卡）", CurrentValue=false, Callback=function(v) EnhancedScanEnabled = v end})
+Tab:CreateToggle({Name="队伍检测（默认开启）", CurrentValue=true, Callback=function(v) TeamDetectionEnabled = v end})
+
+local Tracers = {}
+local Skeletons = {}
+local Highlights = {}
+local PlayerESPStates = {}
+local PlayerCoroutines = {}
+local CharacterAddedConnections = {}
+local CharacterRemovingConnections = {}
+
+local Bones = {
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    {"LowerTorso", "LeftUpperLeg"}, {"LowerTorso", "RightUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"}, {"RightUpperLeg", "RightLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"}, {"RightLowerLeg", "RightFoot"},
+    {"UpperTorso", "LeftUpperArm"}, {"UpperTorso", "RightUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"}, {"RightUpperArm", "RightLowerArm"},
+    {"LeftLowerArm", "LeftHand"}, {"RightLowerArm", "RightHand"}
+}
+
+local DeathCheckTimer = 0
+local DeathCheckInterval = 0.5
+local ESPRefreshTimer = 0
+local ESPRefreshInterval = 0.5
+local HighlightRepairTimer = 0
+local HighlightRepairInterval = 1
+
+local PlayerDeathStatus = {}
+local WallCheckCache = {}
+local WallCheckCooldown = 0
+
+local function CleanupPlayerESP(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    
+    if PlayerCoroutines[plr] then
+        coroutine.close(PlayerCoroutines[plr])
+        PlayerCoroutines[plr] = nil
+    end
+    
+    if CharacterAddedConnections[plr] then
+        CharacterAddedConnections[plr]:Disconnect()
+        CharacterAddedConnections[plr] = nil
+    end
+    
+    if CharacterRemovingConnections[plr] then
+        CharacterRemovingConnections[plr]:Disconnect()
+        CharacterRemovingConnections[plr] = nil
+    end
+    
+    PlayerDeathStatus[plr] = nil
+    WallCheckCache[plr] = nil
+    PlayerESPStates[plr] = nil
+end
+
+local function CreateTracer(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    
+    local line = Drawing.new("Line")
+    line.Thickness = 1
+    line.Transparency = 1
+    Tracers[plr] = line
+end
+
+local function CreateSkeleton(plr)
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    
+    local bones = {}
+    for i = 1, #Bones do
+        local line = Drawing.new("Line")
+        line.Thickness = 1
+        line.Transparency = 1
+        table.insert(bones, line)
+    end
+    Skeletons[plr] = bones
+end
+
+local function CreateHighlight(plr)
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    
+    if plr and plr.Character then
+        local hl = Instance.new("Highlight")
+        hl.FillTransparency = 0.6
+        hl.OutlineTransparency = 0.3
+        hl.Parent = plr.Character
+        Highlights[plr] = hl
+        PlayerESPStates[plr] = PlayerESPStates[plr] or {}
+        PlayerESPStates[plr].lastHighlightCreated = tick()
+    end
+end
+
+local function RepairPlayerHighlight(plr)
+    if not plr or not plr.Character then return end
+    
+    if not Highlights[plr] then
+        CreateHighlight(plr)
+        return
+    end
+    
+    local char = plr.Character
+    local hl = Highlights[plr]
+    
+    if hl.Parent ~= char then
+        hl.Parent = char
+    end
+    
+    if not hl:IsDescendantOf(game) then
+        CreateHighlight(plr)
+    end
+    
+    if PlayerESPStates[plr] and PlayerESPStates[plr].lastHighlightCreated then
+        if tick() - PlayerESPStates[plr].lastHighlightCreated > 10 then
+            CreateHighlight(plr)
+        end
+    end
+end
+
+local function SetupPlayerESP(plr)
+    if plr == LocalPlayer then return end
+    
+    CleanupPlayerESP(plr)
+    
+    PlayerESPStates[plr] = {
+        needsHighlightRepair = false,
+        lastHighlightCreated = 0,
+        character = plr.Character
+    }
+    
+    if plr.Character then
+        CreateHighlight(plr)
+        PlayerESPStates[plr].character = plr.Character
+    end
+    
+    CharacterAddedConnections[plr] = plr.CharacterAdded:Connect(function(char)
+        PlayerESPStates[plr].character = char
+        
+        local co = coroutine.create(function()
+            for i = 1, 10 do
+                if plr and plr.Character and plr.Character:IsDescendantOf(Workspace) then
+                    task.wait(0.1 * i)
+                    CreateHighlight(plr)
+                else
+                    break
+                end
+            end
+        end)
+        
+        PlayerCoroutines[plr] = co
+        coroutine.resume(co)
+    end)
+    
+    CharacterRemovingConnections[plr] = plr.CharacterRemoving:Connect(function(char)
+        if Highlights[plr] then
+            Highlights[plr]:Destroy()
+            Highlights[plr] = nil
+        end
+        PlayerESPStates[plr].character = nil
+        PlayerESPStates[plr].needsHighlightRepair = true
+    end)
+end
+
+local function SimpleWallCheck(plr)
+    if not plr.Character then return false end
+    local head = plr.Character:FindFirstChild("Head")
+    if not head then return false end
+    
+    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+    return onScreen
+end
+
+local function IsTeammate(plr)
+    if not TeamDetectionEnabled then
+        return false
+    end
+    
+    if plr == LocalPlayer then
+        return true
+    end
+    
+    if LocalPlayer.Team and plr.Team then
+        return plr.Team == LocalPlayer.Team
+    end
+    
+    return false
+end
+
+local function GetPlayerColor(plr)
+    if IsTeammate(plr) then
+        return Color3.fromRGB(0, 255, 0)
+    else
+        if WallCheckEnabled then
+            local isVisible = SimpleWallCheck(plr)
+            if isVisible then
+                return Color3.fromRGB(255, 0, 0)
+            else
+                return Color3.fromRGB(255, 255, 0)
+            end
+        else
+            return Color3.fromRGB(255, 0, 0)
+        end
+    end
+end
+
+local function UpdatePlayerDeathStatus()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        
+        local isDead = false
+        local char = plr.Character
+        
+        if not char then
+            isDead = true
+        else
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if not humanoid or humanoid.Health <= 0 then
+                isDead = true
+            end
+        end
+        
+        if PlayerDeathStatus[plr] ~= isDead then
+            PlayerDeathStatus[plr] = isDead
+            
+            if not isDead then
+                PlayerESPStates[plr] = PlayerESPStates[plr] or {}
+                PlayerESPStates[plr].needsHighlightRepair = true
+            end
+            
+            if Tracers[plr] then
+                Tracers[plr].Visible = not isDead
+            end
+            if Skeletons[plr] then
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = not isDead
+                end
+            end
+            if Highlights[plr] then
+                Highlights[plr].Enabled = not isDead
+            end
+        end
+    end
+    
+    for plr, _ in pairs(PlayerDeathStatus) do
+        if not Players:FindFirstChild(plr.Name) then
+            CleanupPlayerESP(plr)
+        end
+    end
+end
+
+local function RepairAllHighlights()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        
+        if PlayerESPStates[plr] and PlayerESPStates[plr].needsHighlightRepair then
+            RepairPlayerHighlight(plr)
+            PlayerESPStates[plr].needsHighlightRepair = false
+        end
+        
+        if plr.Character and not Highlights[plr] and HighlightEnabled then
+            CreateHighlight(plr)
+        end
+        
+        if Highlights[plr] and not Highlights[plr]:IsDescendantOf(game) then
+            CreateHighlight(plr)
+        end
+    end
+end
+
+local frameDelay = 0.033
+local lastFrameTime = 0
+
+RunService.RenderStepped:Connect(function(deltaTime)
+    lastFrameTime = lastFrameTime + deltaTime
+    
+    if lastFrameTime < frameDelay then return end
+    lastFrameTime = 0
+    
+    if not ESPEnabled then
+        for _, line in pairs(Tracers) do 
+            line.Visible = false 
+        end
+        for _, bones in pairs(Skeletons) do 
+            for _, bone in ipairs(bones) do 
+                bone.Visible = false 
+            end 
+        end
+        for _, hl in pairs(Highlights) do 
+            hl.Enabled = false 
+        end
+  return
+    end
+
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        
+        local char = plr.Character
+        local head = char and char:FindFirstChild("Head")
+        
+        if not char or not head then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue
+        end
+        
+        if PlayerDeathStatus[plr] == true then 
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue 
+        end
+        
+        local isTeammate = IsTeammate(plr)
+        if isTeammate and ESPTeamCheck == false then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue
+        end
+
+        local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        local playerColor = GetPlayerColor(plr)
+
+        if TracerEnabled then
+            if not Tracers[plr] then CreateTracer(plr) end
+            if onScreen then
+                Tracers[plr].From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                Tracers[plr].To = Vector2.new(headPos.X, headPos.Y)
+                Tracers[plr].Color = playerColor
+                Tracers[plr].Visible = true
+            else
+                Tracers[plr].Visible = false
+            end
+        elseif Tracers[plr] then
+            Tracers[plr].Visible = false
+        end
+
+        if SkeletonEnabled and onScreen then
+            if not Skeletons[plr] then CreateSkeleton(plr) end
+            local bones = Skeletons[plr]
+            local updatedBones = 0
+            
+            for i, bone in ipairs(Bones) do
+                local p1 = char:FindFirstChild(bone[1])
+                local p2 = char:FindFirstChild(bone[2])
+                if p1 and p2 then
+                    local pos1 = Camera:WorldToViewportPoint(p1.Position)
+                    local pos2 = Camera:WorldToViewportPoint(p2.Position)
+                    bones[i].From = Vector2.new(pos1.X, pos1.Y)
+                    bones[i].To = Vector2.new(pos2.X, pos2.Y)
+                    bones[i].Color = playerColor
+                    bones[i].Visible = true
+                    updatedBones = updatedBones + 1
+                else
+                    bones[i].Visible = false
+                end
+            end
+            
+            if updatedBones == 0 then
+                for _, bone in ipairs(bones) do
+                    bone.Visible = false
+                end
+            end
+        elseif Skeletons[plr] then
+            for _, bone in ipairs(Skeletons[plr]) do
+                bone.Visible = false
+            end
+        end
+
+        if HighlightEnabled then
+            if not Highlights[plr] then 
+                CreateHighlight(plr)
+            elseif Highlights[plr] then
+                if not Highlights[plr]:IsDescendantOf(game) or Highlights[plr].Parent ~= char then
+                    CreateHighlight(plr)
+                else
+                    Highlights[plr].FillColor = playerColor
+                    if isTeammate then
+                        Highlights[plr].OutlineColor = Color3.fromRGB(0, 180, 0)
+                    else
+                        if WallCheckEnabled then
+                            local isVisible = SimpleWallCheck(plr)
+                            if isVisible then
+                                Highlights[plr].OutlineColor = Color3.fromRGB(180, 0, 0)
+                            else
+                                Highlights[plr].OutlineColor = Color3.fromRGB(180, 180, 0)
+                            end
+                        else
+                            Highlights[plr].OutlineColor = Color3.fromRGB(180, 0, 0)
+                        end
+                    end
+                    Highlights[plr].Enabled = true
+                end
+            end
+        end
+    end
+    
+    for plr, _ in pairs(Tracers) do
+        if not Players:FindFirstChild(plr.Name) then
+            CleanupPlayerESP(plr)
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function(deltaTime)
+    DeathCheckTimer = DeathCheckTimer + deltaTime
+    ESPRefreshTimer = ESPRefreshTimer + deltaTime
+    HighlightRepairTimer = HighlightRepairTimer + deltaTime
+    
+    local currentDeathCheckInterval = EnhancedScanEnabled and 0.2 or 0.5
+    local currentESPRefreshInterval = EnhancedScanEnabled and 0.2 or 0.5
+    
+    if DeathCheckTimer >= currentDeathCheckInterval then
+        DeathCheckTimer = 0
+        UpdatePlayerDeathStatus()
+    end
+    
+    if ESPRefreshTimer >= currentESPRefreshInterval then
+        ESPRefreshTimer = 0
+        
+        for plr, cache in pairs(WallCheckCache) do
+            if cache.lastVisibleCheck and tick() - cache.lastVisibleCheck > 2 then
+                WallCheckCache[plr] = nil
+            end
+        end
+    end
+    
+    if HighlightRepairTimer >= HighlightRepairInterval then
+        HighlightRepairTimer = 0
+        RepairAllHighlights()
+    end
+end)
+
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= LocalPlayer then
+        PlayerDeathStatus[plr] = false
+        SetupPlayerESP(plr)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(plr)
+    CleanupPlayerESP(plr)
+end)
+
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then
+        PlayerDeathStatus[plr] = false
+        SetupPlayerESP(plr)
+    end
+end
+
+Rayfield:Notify({Title="透视脚本 就绪", Content="透视v1.5已启动", Duration=5})
