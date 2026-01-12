@@ -7,9 +7,9 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 local Window = Rayfield:CreateWindow({
-    Name = "透视脚本v1.5",
+    Name = "透视脚本 v1.5",
     LoadingTitle = "透视加载中...",
-    LoadingSubtitle = "透视专版",
+    LoadingSubtitle = "v1.5版",
     KeySystem = false
 })
 
@@ -29,7 +29,7 @@ Tab:CreateToggle({Name="天线绘制", CurrentValue=true, Callback=function(v) T
 Tab:CreateToggle({Name="骨骼绘制", CurrentValue=true, Callback=function(v) SkeletonEnabled = v end})
 Tab:CreateToggle({Name="内透Highlight", CurrentValue=true, Callback=function(v) HighlightEnabled = v end})
 Tab:CreateToggle({Name="透视亮队友（默认关闭）", CurrentValue=false, Callback=function(v) ESPTeamCheck = v end})
-Tab:CreateToggle({Name="墙后检测（可能卡顿）", CurrentValue=false, Callback=function(v) WallCheckEnabled = v end})
+Tab:CreateToggle({Name="墙后检测（真实射线）", CurrentValue=false, Callback=function(v) WallCheckEnabled = v end})
 Tab:CreateToggle({Name="增强扫描（可能变卡）", CurrentValue=false, Callback=function(v) EnhancedScanEnabled = v end})
 Tab:CreateToggle({Name="队伍检测（默认开启）", CurrentValue=true, Callback=function(v) TeamDetectionEnabled = v end})
 
@@ -58,6 +58,8 @@ local ESPRefreshTimer = 0
 local ESPRefreshInterval = 0.5
 local HighlightRepairTimer = 0
 local HighlightRepairInterval = 1
+local WallCheckTimer = 0
+local WallCheckInterval = 0.3
 
 local PlayerDeathStatus = {}
 local WallCheckCache = {}
@@ -145,6 +147,7 @@ local function CreateHighlight(plr)
         Highlights[plr] = hl
         PlayerESPStates[plr] = PlayerESPStates[plr] or {}
         PlayerESPStates[plr].lastHighlightCreated = tick()
+        PlayerESPStates[plr].highlightExists = true
     end
 end
 
@@ -182,7 +185,8 @@ local function SetupPlayerESP(plr)
     PlayerESPStates[plr] = {
         needsHighlightRepair = false,
         lastHighlightCreated = 0,
-        character = plr.Character
+        character = plr.Character,
+        highlightExists = false
     }
     
     if plr.Character then
@@ -192,6 +196,7 @@ local function SetupPlayerESP(plr)
     
     CharacterAddedConnections[plr] = plr.CharacterAdded:Connect(function(char)
         PlayerESPStates[plr].character = char
+        PlayerESPStates[plr].needsHighlightRepair = true
         
         local co = coroutine.create(function()
             for i = 1, 10 do
@@ -215,7 +220,41 @@ local function SetupPlayerESP(plr)
         end
         PlayerESPStates[plr].character = nil
         PlayerESPStates[plr].needsHighlightRepair = true
+        PlayerESPStates[plr].highlightExists = false
     end)
+end
+
+local function RealWallCheck(plr)
+    if not plr or not plr.Character then return false end
+    
+    local head = plr.Character:FindFirstChild("Head")
+    if not head then return false end
+    
+    local origin = Camera.CFrame.Position
+    local target = head.Position
+    local direction = (target - origin).Unit
+    local distance = (target - origin).Magnitude
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, plr.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.IgnoreWater = true
+    
+    local rayResult = Workspace:Raycast(origin, direction * distance, rayParams)
+    
+    if rayResult then
+        local hitPart = rayResult.Instance
+        if hitPart then
+            local hitCharacter = hitPart:FindFirstAncestorOfClass("Model")
+            if hitCharacter and hitCharacter == plr.Character then
+                return true
+            else
+                return false
+            end
+        end
+    end
+    
+    return true
 end
 
 local function SimpleWallCheck(plr)
@@ -225,6 +264,25 @@ local function SimpleWallCheck(plr)
     
     local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
     return onScreen
+end
+
+local function GetWallCheck(plr)
+    if not WallCheckEnabled then
+        return true
+    end
+    
+    if WallCheckCache[plr] and WallCheckCache[plr].lastCheck and tick() - WallCheckCache[plr].lastCheck < WallCheckInterval then
+        return WallCheckCache[plr].isVisible
+    end
+    
+    local isVisible = RealWallCheck(plr)
+    
+    WallCheckCache[plr] = {
+        isVisible = isVisible,
+        lastCheck = tick()
+    }
+    
+    return isVisible
 end
 
 local function IsTeammate(plr)
@@ -248,7 +306,7 @@ local function GetPlayerColor(plr)
         return Color3.fromRGB(0, 255, 0)
     else
         if WallCheckEnabled then
-            local isVisible = SimpleWallCheck(plr)
+            local isVisible = GetWallCheck(plr)
             if isVisible then
                 return Color3.fromRGB(255, 0, 0)
             else
@@ -345,7 +403,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
         for _, hl in pairs(Highlights) do 
             hl.Enabled = false 
         end
-  return
+        return
     end
 
     for _, plr in pairs(Players:GetPlayers()) do
@@ -449,7 +507,7 @@ RunService.RenderStepped:Connect(function(deltaTime)
                         Highlights[plr].OutlineColor = Color3.fromRGB(0, 180, 0)
                     else
                         if WallCheckEnabled then
-                            local isVisible = SimpleWallCheck(plr)
+                            local isVisible = GetWallCheck(plr)
                             if isVisible then
                                 Highlights[plr].OutlineColor = Color3.fromRGB(180, 0, 0)
                             else
@@ -476,6 +534,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
     DeathCheckTimer = DeathCheckTimer + deltaTime
     ESPRefreshTimer = ESPRefreshTimer + deltaTime
     HighlightRepairTimer = HighlightRepairTimer + deltaTime
+    WallCheckTimer = WallCheckTimer + deltaTime
     
     local currentDeathCheckInterval = EnhancedScanEnabled and 0.2 or 0.5
     local currentESPRefreshInterval = EnhancedScanEnabled and 0.2 or 0.5
@@ -489,7 +548,7 @@ RunService.Heartbeat:Connect(function(deltaTime)
         ESPRefreshTimer = 0
         
         for plr, cache in pairs(WallCheckCache) do
-            if cache.lastVisibleCheck and tick() - cache.lastVisibleCheck > 2 then
+            if cache.lastCheck and tick() - cache.lastCheck > 2 then
                 WallCheckCache[plr] = nil
             end
         end
@@ -498,6 +557,20 @@ RunService.Heartbeat:Connect(function(deltaTime)
     if HighlightRepairTimer >= HighlightRepairInterval then
         HighlightRepairTimer = 0
         RepairAllHighlights()
+    end
+    
+    if WallCheckTimer >= WallCheckInterval then
+        WallCheckTimer = 0
+        
+        if WallCheckEnabled and ESPEnabled then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr == LocalPlayer then continue end
+                
+                if plr.Character and not PlayerDeathStatus[plr] then
+                    GetWallCheck(plr)
+                end
+            end
+        end
     end
 end)
 
@@ -519,4 +592,4 @@ for _, plr in pairs(Players:GetPlayers()) do
     end
 end
 
-Rayfield:Notify({Title="透视脚本 就绪", Content="透视v1.5已启动", Duration=5})
+Rayfield:Notify({Title="透视脚本 v1.5 就绪", Content="欢迎使用", Duration=5})
