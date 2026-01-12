@@ -28,10 +28,10 @@ Tab:CreateToggle({Name="透视总开关", CurrentValue=false, Callback=function(
 Tab:CreateToggle({Name="天线绘制", CurrentValue=true, Callback=function(v) TracerEnabled = v end})
 Tab:CreateToggle({Name="骨骼绘制", CurrentValue=true, Callback=function(v) SkeletonEnabled = v end})
 Tab:CreateToggle({Name="内透Highlight", CurrentValue=true, Callback=function(v) HighlightEnabled = v end})
-Tab:CreateToggle({Name="透视亮队友（默认关闭）", CurrentValue=false, Callback=function(v) ESPTeamCheck = v end})
-Tab:CreateToggle({Name="墙后检测（真实射线）", CurrentValue=false, Callback=function(v) WallCheckEnabled = v end})
+Tab:CreateToggle({Name="透视亮队友", CurrentValue=false, Callback=function(v) ESPTeamCheck = v end})
+Tab:CreateToggle({Name="墙后检测(可能变卡)", CurrentValue=false, Callback=function(v) WallCheckEnabled = v end})
 Tab:CreateToggle({Name="增强扫描（可能变卡）", CurrentValue=false, Callback=function(v) EnhancedScanEnabled = v end})
-Tab:CreateToggle({Name="队伍检测（默认开启）", CurrentValue=true, Callback=function(v) TeamDetectionEnabled = v end})
+Tab:CreateToggle({Name="队伍检测", CurrentValue=true, Callback=function(v) TeamDetectionEnabled = v end})
 
 local Tracers = {}
 local Skeletons = {}
