@@ -1,19 +1,20 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
+local Window = Rayfield:CreateWindow({
+   Name = "ESP脚本v1.5",
+   LoadingTitle = "脚本加载中",
+   LoadingSubtitle = "正在初始化...",
+   ConfigurationSaving = {Enabled = true, FolderName = "ESP15"},
+   KeySystem = false
+})
+
+local ESPTab = Window:CreateTab("透视系统", 4483362458)
+
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
-
-local Window = Rayfield:CreateWindow({
-    Name = "透视脚本 v1.5",
-    LoadingTitle = "透视加载中...",
-    LoadingSubtitle = "v1.5版",
-    KeySystem = false
-})
-
-local Tab = Window:CreateTab("透视功能", 4483362458)
 
 local ESPEnabled = false
 local TracerEnabled = true
@@ -24,14 +25,14 @@ local WallCheckEnabled = false
 local EnhancedScanEnabled = false
 local TeamDetectionEnabled = true
 
-Tab:CreateToggle({Name="透视总开关", CurrentValue=false, Callback=function(v) ESPEnabled = v end})
-Tab:CreateToggle({Name="天线绘制", CurrentValue=true, Callback=function(v) TracerEnabled = v end})
-Tab:CreateToggle({Name="骨骼绘制", CurrentValue=true, Callback=function(v) SkeletonEnabled = v end})
-Tab:CreateToggle({Name="内透Highlight", CurrentValue=true, Callback=function(v) HighlightEnabled = v end})
-Tab:CreateToggle({Name="透视亮队友", CurrentValue=false, Callback=function(v) ESPTeamCheck = v end})
-Tab:CreateToggle({Name="墙后检测(可能变卡)", CurrentValue=false, Callback=function(v) WallCheckEnabled = v end})
-Tab:CreateToggle({Name="增强扫描（可能变卡）", CurrentValue=false, Callback=function(v) EnhancedScanEnabled = v end})
-Tab:CreateToggle({Name="队伍检测", CurrentValue=true, Callback=function(v) TeamDetectionEnabled = v end})
+ESPTab:CreateToggle({Name = "透视总开关", CurrentValue = false, Callback = function(v) ESPEnabled = v end})
+ESPTab:CreateToggle({Name = "天线绘制", CurrentValue = true, Callback = function(v) TracerEnabled = v end})
+ESPTab:CreateToggle({Name = "骨骼绘制", CurrentValue = true, Callback = function(v) SkeletonEnabled = v end})
+ESPTab:CreateToggle({Name = "内透Highlight", CurrentValue = true, Callback = function(v) HighlightEnabled = v end})
+ESPTab:CreateToggle({Name = "透视亮队友", CurrentValue = false, Callback = function(v) ESPTeamCheck = v end})
+ESPTab:CreateToggle({Name = "墙后检测", CurrentValue = false, Callback = function(v) WallCheckEnabled = v end})
+ESPTab:CreateToggle({Name = "增强扫描", CurrentValue = false, Callback = function(v) EnhancedScanEnabled = v end})
+ESPTab:CreateToggle({Name = "队伍检测", CurrentValue = true, Callback = function(v) TeamDetectionEnabled = v end})
 
 local Tracers = {}
 local Skeletons = {}
@@ -63,41 +64,34 @@ local WallCheckInterval = 0.3
 
 local PlayerDeathStatus = {}
 local WallCheckCache = {}
-local WallCheckCooldown = 0
 
 local function CleanupPlayerESP(plr)
     if Tracers[plr] then 
         Tracers[plr]:Remove()
         Tracers[plr] = nil
     end
-    
     if Skeletons[plr] then
         for _, bone in ipairs(Skeletons[plr]) do
             bone:Remove()
         end
         Skeletons[plr] = nil
     end
-    
     if Highlights[plr] then
         Highlights[plr]:Destroy()
         Highlights[plr] = nil
     end
-    
     if PlayerCoroutines[plr] then
         coroutine.close(PlayerCoroutines[plr])
         PlayerCoroutines[plr] = nil
     end
-    
     if CharacterAddedConnections[plr] then
         CharacterAddedConnections[plr]:Disconnect()
         CharacterAddedConnections[plr] = nil
     end
-    
     if CharacterRemovingConnections[plr] then
         CharacterRemovingConnections[plr]:Disconnect()
         CharacterRemovingConnections[plr] = nil
     end
-    
     PlayerDeathStatus[plr] = nil
     WallCheckCache[plr] = nil
     PlayerESPStates[plr] = nil
@@ -108,7 +102,6 @@ local function CreateTracer(plr)
         Tracers[plr]:Remove()
         Tracers[plr] = nil
     end
-    
     local line = Drawing.new("Line")
     line.Thickness = 1
     line.Transparency = 1
@@ -122,7 +115,6 @@ local function CreateSkeleton(plr)
         end
         Skeletons[plr] = nil
     end
-    
     local bones = {}
     for i = 1, #Bones do
         local line = Drawing.new("Line")
@@ -138,7 +130,6 @@ local function CreateHighlight(plr)
         Highlights[plr]:Destroy()
         Highlights[plr] = nil
     end
-    
     if plr and plr.Character then
         local hl = Instance.new("Highlight")
         hl.FillTransparency = 0.6
@@ -153,23 +144,18 @@ end
 
 local function RepairPlayerHighlight(plr)
     if not plr or not plr.Character then return end
-    
     if not Highlights[plr] then
         CreateHighlight(plr)
         return
     end
-    
     local char = plr.Character
     local hl = Highlights[plr]
-    
     if hl.Parent ~= char then
         hl.Parent = char
     end
-    
     if not hl:IsDescendantOf(game) then
         CreateHighlight(plr)
     end
-    
     if PlayerESPStates[plr] and PlayerESPStates[plr].lastHighlightCreated then
         if tick() - PlayerESPStates[plr].lastHighlightCreated > 10 then
             CreateHighlight(plr)
@@ -179,41 +165,40 @@ end
 
 local function SetupPlayerESP(plr)
     if plr == LocalPlayer then return end
-    
     CleanupPlayerESP(plr)
-    
     PlayerESPStates[plr] = {
         needsHighlightRepair = false,
         lastHighlightCreated = 0,
         character = plr.Character,
         highlightExists = false
     }
-    
     if plr.Character then
-        CreateHighlight(plr)
+        CreateSkeleton(plr)
         PlayerESPStates[plr].character = plr.Character
     end
-    
     CharacterAddedConnections[plr] = plr.CharacterAdded:Connect(function(char)
         PlayerESPStates[plr].character = char
         PlayerESPStates[plr].needsHighlightRepair = true
-        
         local co = coroutine.create(function()
             for i = 1, 10 do
                 if plr and plr.Character and plr.Character:IsDescendantOf(Workspace) then
                     task.wait(0.1 * i)
-                    CreateHighlight(plr)
+                    CreateSkeleton(plr)
                 else
                     break
                 end
             end
         end)
-        
         PlayerCoroutines[plr] = co
         coroutine.resume(co)
     end)
-    
     CharacterRemovingConnections[plr] = plr.CharacterRemoving:Connect(function(char)
+        if Skeletons[plr] then
+            for _, bone in ipairs(Skeletons[plr]) do
+                bone:Remove()
+            end
+            Skeletons[plr] = nil
+        end
         if Highlights[plr] then
             Highlights[plr]:Destroy()
             Highlights[plr] = nil
@@ -226,22 +211,17 @@ end
 
 local function RealWallCheck(plr)
     if not plr or not plr.Character then return false end
-    
     local head = plr.Character:FindFirstChild("Head")
     if not head then return false end
-    
     local origin = Camera.CFrame.Position
     local target = head.Position
     local direction = (target - origin).Unit
     local distance = (target - origin).Magnitude
-    
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = {LocalPlayer.Character, plr.Character}
     rayParams.FilterType = Enum.RaycastFilterType.Blacklist
     rayParams.IgnoreWater = true
-    
     local rayResult = Workspace:Raycast(origin, direction * distance, rayParams)
-    
     if rayResult then
         local hitPart = rayResult.Instance
         if hitPart then
@@ -253,35 +233,21 @@ local function RealWallCheck(plr)
             end
         end
     end
-    
     return true
-end
-
-local function SimpleWallCheck(plr)
-    if not plr.Character then return false end
-    local head = plr.Character:FindFirstChild("Head")
-    if not head then return false end
-    
-    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-    return onScreen
 end
 
 local function GetWallCheck(plr)
     if not WallCheckEnabled then
         return true
     end
-    
     if WallCheckCache[plr] and WallCheckCache[plr].lastCheck and tick() - WallCheckCache[plr].lastCheck < WallCheckInterval then
         return WallCheckCache[plr].isVisible
     end
-    
     local isVisible = RealWallCheck(plr)
-    
     WallCheckCache[plr] = {
         isVisible = isVisible,
         lastCheck = tick()
     }
-    
     return isVisible
 end
 
@@ -289,15 +255,12 @@ local function IsTeammate(plr)
     if not TeamDetectionEnabled then
         return false
     end
-    
     if plr == LocalPlayer then
         return true
     end
-    
     if LocalPlayer.Team and plr.Team then
         return plr.Team == LocalPlayer.Team
     end
-    
     return false
 end
 
@@ -321,10 +284,8 @@ end
 local function UpdatePlayerDeathStatus()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr == LocalPlayer then continue end
-        
         local isDead = false
         local char = plr.Character
-        
         if not char then
             isDead = true
         else
@@ -333,15 +294,12 @@ local function UpdatePlayerDeathStatus()
                 isDead = true
             end
         end
-        
         if PlayerDeathStatus[plr] ~= isDead then
             PlayerDeathStatus[plr] = isDead
-            
             if not isDead then
                 PlayerESPStates[plr] = PlayerESPStates[plr] or {}
                 PlayerESPStates[plr].needsHighlightRepair = true
             end
-            
             if Tracers[plr] then
                 Tracers[plr].Visible = not isDead
             end
@@ -355,7 +313,6 @@ local function UpdatePlayerDeathStatus()
             end
         end
     end
-    
     for plr, _ in pairs(PlayerDeathStatus) do
         if not Players:FindFirstChild(plr.Name) then
             CleanupPlayerESP(plr)
@@ -366,16 +323,13 @@ end
 local function RepairAllHighlights()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr == LocalPlayer then continue end
-        
         if PlayerESPStates[plr] and PlayerESPStates[plr].needsHighlightRepair then
             RepairPlayerHighlight(plr)
             PlayerESPStates[plr].needsHighlightRepair = false
         end
-        
         if plr.Character and not Highlights[plr] and HighlightEnabled then
             CreateHighlight(plr)
         end
-        
         if Highlights[plr] and not Highlights[plr]:IsDescendantOf(game) then
             CreateHighlight(plr)
         end
@@ -387,10 +341,8 @@ local lastFrameTime = 0
 
 RunService.RenderStepped:Connect(function(deltaTime)
     lastFrameTime = lastFrameTime + deltaTime
-    
     if lastFrameTime < frameDelay then return end
     lastFrameTime = 0
-    
     if not ESPEnabled then
         for _, line in pairs(Tracers) do 
             line.Visible = false 
@@ -405,13 +357,10 @@ RunService.RenderStepped:Connect(function(deltaTime)
         end
         return
     end
-
     for _, plr in pairs(Players:GetPlayers()) do
         if plr == LocalPlayer then continue end
-        
         local char = plr.Character
         local head = char and char:FindFirstChild("Head")
-        
         if not char or not head then
             if Tracers[plr] then Tracers[plr].Visible = false end
             if Skeletons[plr] then 
@@ -422,7 +371,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
             if Highlights[plr] then Highlights[plr].Enabled = false end
             continue
         end
-        
         if PlayerDeathStatus[plr] == true then 
             if Tracers[plr] then Tracers[plr].Visible = false end
             if Skeletons[plr] then 
@@ -433,7 +381,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
             if Highlights[plr] then Highlights[plr].Enabled = false end
             continue 
         end
-        
         local isTeammate = IsTeammate(plr)
         if isTeammate and ESPTeamCheck == false then
             if Tracers[plr] then Tracers[plr].Visible = false end
@@ -445,10 +392,8 @@ RunService.RenderStepped:Connect(function(deltaTime)
             if Highlights[plr] then Highlights[plr].Enabled = false end
             continue
         end
-
         local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
         local playerColor = GetPlayerColor(plr)
-
         if TracerEnabled then
             if not Tracers[plr] then CreateTracer(plr) end
             if onScreen then
@@ -462,29 +407,36 @@ RunService.RenderStepped:Connect(function(deltaTime)
         elseif Tracers[plr] then
             Tracers[plr].Visible = false
         end
-
-        if SkeletonEnabled and onScreen then
+        if SkeletonEnabled then
             if not Skeletons[plr] then CreateSkeleton(plr) end
             local bones = Skeletons[plr]
-            local updatedBones = 0
-            
-            for i, bone in ipairs(Bones) do
-                local p1 = char:FindFirstChild(bone[1])
-                local p2 = char:FindFirstChild(bone[2])
-                if p1 and p2 then
-                    local pos1 = Camera:WorldToViewportPoint(p1.Position)
-                    local pos2 = Camera:WorldToViewportPoint(p2.Position)
-                    bones[i].From = Vector2.new(pos1.X, pos1.Y)
-                    bones[i].To = Vector2.new(pos2.X, pos2.Y)
-                    bones[i].Color = playerColor
-                    bones[i].Visible = true
-                    updatedBones = updatedBones + 1
-                else
-                    bones[i].Visible = false
+            if onScreen then
+                local updatedBones = 0
+                for i, bone in ipairs(Bones) do
+                    local p1 = char:FindFirstChild(bone[1])
+                    local p2 = char:FindFirstChild(bone[2])
+                    if p1 and p2 then
+                        local pos1, vis1 = Camera:WorldToViewportPoint(p1.Position)
+                        local pos2, vis2 = Camera:WorldToViewportPoint(p2.Position)
+                        if vis1 and vis2 then
+                            bones[i].From = Vector2.new(pos1.X, pos1.Y)
+                            bones[i].To = Vector2.new(pos2.X, pos2.Y)
+                            bones[i].Color = playerColor
+                            bones[i].Visible = true
+                            updatedBones = updatedBones + 1
+                        else
+                            bones[i].Visible = false
+                        end
+                    else
+                        bones[i].Visible = false
+                    end
                 end
-            end
-            
-            if updatedBones == 0 then
+                if updatedBones == 0 then
+                    for _, bone in ipairs(bones) do
+                        bone.Visible = false
+                    end
+                end
+            else
                 for _, bone in ipairs(bones) do
                     bone.Visible = false
                 end
@@ -494,7 +446,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 bone.Visible = false
             end
         end
-
         if HighlightEnabled then
             if not Highlights[plr] then 
                 CreateHighlight(plr)
@@ -520,9 +471,12 @@ RunService.RenderStepped:Connect(function(deltaTime)
                     Highlights[plr].Enabled = true
                 end
             end
+        else
+            if Highlights[plr] then
+                Highlights[plr].Enabled = false
+            end
         end
     end
-    
     for plr, _ in pairs(Tracers) do
         if not Players:FindFirstChild(plr.Name) then
             CleanupPlayerESP(plr)
@@ -535,37 +489,29 @@ RunService.Heartbeat:Connect(function(deltaTime)
     ESPRefreshTimer = ESPRefreshTimer + deltaTime
     HighlightRepairTimer = HighlightRepairTimer + deltaTime
     WallCheckTimer = WallCheckTimer + deltaTime
-    
     local currentDeathCheckInterval = EnhancedScanEnabled and 0.2 or 0.5
     local currentESPRefreshInterval = EnhancedScanEnabled and 0.2 or 0.5
-    
     if DeathCheckTimer >= currentDeathCheckInterval then
         DeathCheckTimer = 0
         UpdatePlayerDeathStatus()
     end
-    
     if ESPRefreshTimer >= currentESPRefreshInterval then
         ESPRefreshTimer = 0
-        
         for plr, cache in pairs(WallCheckCache) do
             if cache.lastCheck and tick() - cache.lastCheck > 2 then
                 WallCheckCache[plr] = nil
             end
         end
     end
-    
     if HighlightRepairTimer >= HighlightRepairInterval then
         HighlightRepairTimer = 0
         RepairAllHighlights()
     end
-    
     if WallCheckTimer >= WallCheckInterval then
         WallCheckTimer = 0
-        
         if WallCheckEnabled and ESPEnabled then
             for _, plr in pairs(Players:GetPlayers()) do
                 if plr == LocalPlayer then continue end
-                
                 if plr.Character and not PlayerDeathStatus[plr] then
                     GetWallCheck(plr)
                 end
@@ -592,4 +538,221 @@ for _, plr in pairs(Players:GetPlayers()) do
     end
 end
 
-Rayfield:Notify({Title="透视脚本 v1.5 就绪", Content="欢迎使用", Duration=5})
+local AntiKickTab = Window:CreateTab("防踢系统", 4483362458)
+
+local MasterEnabled = false
+local backupHooks = {}
+local activeConnections = {}
+local fakeRemotes = {}
+
+local function SetupHookProtection()
+    local mt = getrawmetatable(game)
+    setreadonly(mt, false)
+    local oldNamecall = mt.__namecall
+    mt.__namecall = newcclosure(function(Self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" and Self == game.Players.LocalPlayer then
+            return
+        end
+        return oldNamecall(Self, ...)
+    end)
+    setreadonly(mt, true)
+    backupHooks.namecall = oldNamecall
+    
+    local originalKick = game.Players.LocalPlayer.Kick
+    game.Players.LocalPlayer.Kick = function(self, ...)
+        return nil
+    end
+    backupHooks.kick = originalKick
+end
+
+local function SetupNetworkCamouflage()
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    
+    for i = 1, 3 do
+        local fakeRemote = Instance.new("RemoteEvent")
+        fakeRemote.Name = "ClientSignal_" .. math.random(1000,9999) .. "_" .. i
+        fakeRemote.Parent = ReplicatedStorage
+        table.insert(fakeRemotes, fakeRemote)
+    end
+    
+    local connection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not MasterEnabled then return end
+        
+        for _, remote in pairs(fakeRemotes) do
+            pcall(function()
+                remote:FireServer({
+                    Type = "PlayerUpdate",
+                    Position = game.Players.LocalPlayer.Character and 
+                              game.Players.LocalPlayer.Character.HumanoidRootPart and
+                              game.Players.LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new(),
+                    Health = 100,
+                    Timestamp = os.time(),
+                    IsLegit = true
+                })
+            end)
+        end
+    end)
+    
+    table.insert(activeConnections, connection)
+end
+
+local function SetupCharacterProtection()
+    local LocalPlayer = game.Players.LocalPlayer
+    
+    local charRemoving = LocalPlayer.CharacterRemoving:Connect(function()
+        task.wait(0.1)
+        LocalPlayer:LoadCharacter()
+    end)
+    table.insert(activeConnections, charRemoving)
+    
+    local charAdded = LocalPlayer.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        char:SetAttribute("AntiKill_Protected", true)
+        
+        local protectionScript = Instance.new("Script", char)
+        protectionScript.Name = "AntiKill_" .. math.random(1000,9999)
+        protectionScript.Enabled = true
+        protectionScript.Source = [[
+            local char = script.Parent
+            while task.wait(1) do
+                if not char:GetAttribute("AntiKill_Protected") then
+                    char:SetAttribute("AntiKill_Protected", true)
+                end
+            end
+        ]]
+    end)
+    table.insert(activeConnections, charAdded)
+    
+    local microMove = game:GetService("RunService").Stepped:Connect(function()
+        if not MasterEnabled then return end
+        
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local root = char.HumanoidRootPart
+            local offset = Vector3.new(
+                math.random(-3,3)/200,
+                math.random(-1,1)/200,
+                math.random(-3,3)/200
+            )
+            root.CFrame = root.CFrame + offset
+        end
+    end)
+    table.insert(activeConnections, microMove)
+end
+
+local function SetupRemoteMonitoring()
+    local function hookRemote(remote)
+        if remote:IsA("RemoteEvent") then
+            local oldFire = remote.FireServer
+            remote.FireServer = function(self, ...)
+                local args = {...}
+                for _, arg in pairs(args) do
+                    if type(arg) == "string" and (arg:lower():find("kick") or arg:lower():find("ban")) then
+                        return nil
+                    end
+                end
+                return oldFire(self, ...)
+            end
+        elseif remote:IsA("RemoteFunction") then
+            local oldInvoke = remote.InvokeServer
+            remote.InvokeServer = function(self, ...)
+                local args = {...}
+                for _, arg in pairs(args) do
+                    if type(arg) == "string" and arg:lower():find("kick") then
+                        return {Success = false, Reason = "Blocked"}
+                    end
+                end
+                return oldInvoke(self, ...)
+            end
+        end
+    end
+    
+    for _, remote in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        pcall(hookRemote, remote)
+    end
+    
+    local connection = game:GetService("ReplicatedStorage").DescendantAdded:Connect(function(remote)
+        task.wait(0.5)
+        pcall(hookRemote, remote)
+    end)
+    table.insert(activeConnections, connection)
+end
+
+local function SetupTeleportProtection()
+    local teleportConnection = game.Players.LocalPlayer.OnTeleport:Connect(function(state)
+        if state == Enum.TeleportState.Started then
+            task.wait(0.1)
+            game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
+        end
+    end)
+    table.insert(activeConnections, teleportConnection)
+end
+
+local function Cleanup()
+    MasterEnabled = false
+    
+    for _, conn in pairs(activeConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    activeConnections = {}
+    
+    for _, remote in pairs(fakeRemotes) do
+        pcall(function() remote:Destroy() end)
+    end
+    fakeRemotes = {}
+    
+    if backupHooks.namecall then
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        mt.__namecall = backupHooks.namecall
+        setreadonly(mt, true)
+    end
+    
+    if backupHooks.kick then
+        game.Players.LocalPlayer.Kick = backupHooks.kick
+    end
+end
+
+AntiKickTab:CreateToggle({
+    Name = "启动防踢",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            MasterEnabled = true
+            SetupHookProtection()
+            SetupNetworkCamouflage()
+            SetupCharacterProtection()
+            SetupRemoteMonitoring()
+            SetupTeleportProtection()
+        else
+            Cleanup()
+        end
+    end
+})
+
+AntiKickTab:CreateLabel("建议飞行速度0.3")
+
+local OtherTab = Window:CreateTab("其他功能", 4483362458)
+
+OtherTab:CreateButton({
+    Name = "静默自瞄",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/HoaTan1123/1/refs/heads/main/SilentAimSettings"))()
+    end
+})
+
+OtherTab:CreateButton({
+    Name = "IY指令 (中文版)",
+    Callback = function()
+        loadstring(game:HttpGet(utf8.char((function() 
+            return table.unpack({
+                104,116,116,112,115,58,47,47,114,97,119,46,103,105,116,104,117,98,117,
+                115,101,114,99,111,110,116,101,110,116,46,99,111,109,47,87,97,110,103,
+                122,104,101,104,97,111,104,47,102,108,121,45,97,119,97,121,47,109,97,
+                105,110,47,37,69,54,37,56,67,37,56,55,37,69,52,37,66,66,37,56,65,37,
+                69,52,37,66,56,37,65,68,37,69,54,37,57,54,37,56,55,46,116,120,116
+            })
+        end)())))()
+    end
+})
