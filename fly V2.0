@@ -1,0 +1,495 @@
+local player = game:GetService("Players").LocalPlayer
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local coreGui = game:GetService("CoreGui")
+
+local blocks = {}
+local followBlock = nil
+local followConnection = nil
+local isDragging = false
+local dragStartPos = nil
+local uiStartPos = nil
+local gui = nil
+local mainFrame = nil
+local isUpPressed = false
+local isDownPressed = false
+local currentHeight = 0
+local isPlayerOnBlock = false
+local playerConnection = nil
+
+-- 添加缩小状态变量
+local isMinimized = false
+local originalSize = nil
+local minimizedSize = UDim2.new(0, 200, 0, 30) -- 缩小后的尺寸（只有标题栏）
+local minimizeButton = nil
+local contentContainer = nil -- 用于包裹所有内容，方便显示/隐藏
+
+local function createDraggableUI()
+    gui = Instance.new("ScreenGui")
+    gui.Name = "GameMenu"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = coreGui
+    
+    mainFrame = Instance.new("Frame")
+    mainFrame.Name = "Main"
+    mainFrame.Size = UDim2.new(0, 200, 0, 180)
+    mainFrame.Position = UDim2.new(0, 10, 0.5, -90)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.BackgroundTransparency = 0.8
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Visible = true
+    mainFrame.Active = true
+    mainFrame.Selectable = true
+    mainFrame.Parent = gui
+    
+    originalSize = mainFrame.Size
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = mainFrame
+    
+    -- 创建内容容器，用于包裹除标题栏外的所有内容
+    contentContainer = Instance.new("Frame")
+    contentContainer.Name = "ContentContainer"
+    contentContainer.Size = UDim2.new(1, 0, 1, -30)
+    contentContainer.Position = UDim2.new(0, 0, 0, 30)
+    contentContainer.BackgroundTransparency = 1
+    contentContainer.BorderSizePixel = 0
+    contentContainer.Parent = mainFrame
+    
+    -- 通用的拖动函数
+    local function setupDragging()
+        local isDraggingLocal = false
+        local dragStartPosLocal = nil
+        local uiStartPosLocal = nil
+        
+        -- 在标题栏上绑定拖动事件
+        local titleBar = nil
+        
+        -- 等待标题栏被创建
+        task.wait()
+        
+        titleBar = mainFrame:FindFirstChild("TitleBar")
+        
+        if not titleBar then
+            warn("标题栏未找到！")
+            return
+        end
+        
+        titleBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                isDraggingLocal = true
+                dragStartPosLocal = userInputService:GetMouseLocation()
+                uiStartPosLocal = UDim2.new(
+                    mainFrame.Position.X.Scale,
+                    mainFrame.Position.X.Offset,
+                    mainFrame.Position.Y.Scale,
+                    mainFrame.Position.Y.Offset
+                )
+                
+                local dragConnection
+                dragConnection = runService.Heartbeat:Connect(function()
+                    if not isDraggingLocal or not mainFrame or not mainFrame.Parent then
+                        if dragConnection then
+                            dragConnection:Disconnect()
+                        end
+                        return
+                    end
+                    
+                    local currentMousePos = userInputService:GetMouseLocation()
+                    local delta = currentMousePos - dragStartPosLocal
+                    
+                    mainFrame.Position = UDim2.new(
+                        uiStartPosLocal.X.Scale,
+                        uiStartPosLocal.X.Offset + delta.X,
+                        uiStartPosLocal.Y.Scale,
+                        uiStartPosLocal.Y.Offset + delta.Y
+                    )
+                end)
+                
+                local endConnection
+                endConnection = userInputService.InputEnded:Connect(function(endInput)
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 then
+                        isDraggingLocal = false
+                        if dragConnection then
+                            dragConnection:Disconnect()
+                        end
+                        if endConnection then
+                            endConnection:Disconnect()
+                        end
+                    end
+                end)
+            end
+        end)
+        
+        -- 在缩小按钮上禁用拖动（避免冲突）
+        minimizeButton.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                isDraggingLocal = false
+            end
+        end)
+    end
+    
+    local titleBar = Instance.new("TextLabel")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    titleBar.BackgroundTransparency = 0.7
+    titleBar.BorderSizePixel = 0
+    titleBar.Text = "fly v2.0"
+    titleBar.TextColor3 = Color3.fromRGB(200, 200, 200)
+    titleBar.TextSize = 16
+    titleBar.Font = Enum.Font.Gotham
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 5)
+    titleCorner.Parent = titleBar
+    
+    -- 添加缩小/展开按钮到标题栏右侧
+    minimizeButton = Instance.new("TextButton")
+    minimizeButton.Name = "MinimizeButton"
+    minimizeButton.Size = UDim2.new(0, 25, 0, 25)
+    minimizeButton.Position = UDim2.new(1, -30, 0, 2)
+    minimizeButton.AnchorPoint = Vector2.new(1, 0)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    minimizeButton.BackgroundTransparency = 0.7
+    minimizeButton.BorderSizePixel = 0
+    minimizeButton.Text = "-"
+    minimizeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    minimizeButton.TextSize = 18
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.Parent = titleBar
+    
+    local minimizeCorner = Instance.new("UICorner")
+    minimizeCorner.CornerRadius = UDim.new(0, 3)
+    minimizeCorner.Parent = minimizeButton
+    
+    -- 设置拖动功能
+    task.spawn(setupDragging)
+    
+    -- 创建所有功能按钮（放在内容容器中）
+    local parallelButton = Instance.new("TextButton")
+    parallelButton.Name = "Parallel"
+    parallelButton.Size = UDim2.new(0.9, 0, 0, 30)
+    parallelButton.Position = UDim2.new(0.05, 0, 0, 10)
+    parallelButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    parallelButton.BackgroundTransparency = 0.7
+    parallelButton.BorderSizePixel = 0
+    parallelButton.Text = "开启飞行"
+    parallelButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    parallelButton.TextSize = 14
+    parallelButton.Font = Enum.Font.Gotham
+    parallelButton.Parent = contentContainer
+    
+    local parallelCorner = Instance.new("UICorner")
+    parallelCorner.CornerRadius = UDim.new(0, 3)
+    parallelCorner.Parent = parallelButton
+    
+    local upButton = Instance.new("TextButton")
+    upButton.Name = "Up"
+    upButton.Size = UDim2.new(0.9, 0, 0, 30)
+    upButton.Position = UDim2.new(0.05, 0, 0, 50)
+    upButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    upButton.BackgroundTransparency = 0.7
+    upButton.BorderSizePixel = 0
+    upButton.Text = "向上一格"
+    upButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    upButton.TextSize = 14
+    upButton.Font = Enum.Font.Gotham
+    upButton.Parent = contentContainer
+    
+    local upCorner = Instance.new("UICorner")
+    upCorner.CornerRadius = UDim.new(0, 3)
+    upCorner.Parent = upButton
+    
+    local downButton = Instance.new("TextButton")
+    downButton.Name = "Down"
+    downButton.Size = UDim2.new(0.9, 0, 0, 30)
+    downButton.Position = UDim2.new(0.05, 0, 0, 90)
+    downButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    downButton.BackgroundTransparency = 0.7
+    downButton.BorderSizePixel = 0
+    downButton.Text = "向下一格"
+    downButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    downButton.TextSize = 14
+    downButton.Font = Enum.Font.Gotham
+    downButton.Parent = contentContainer
+    
+    local downCorner = Instance.new("UICorner")
+    downCorner.CornerRadius = UDim.new(0, 3)
+    downCorner.Parent = downButton
+    
+    local clearButton = Instance.new("TextButton")
+    clearButton.Name = "Clear"
+    clearButton.Size = UDim2.new(0.9, 0, 0, 30)
+    clearButton.Position = UDim2.new(0.05, 0, 0, 130)
+    clearButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+    clearButton.BackgroundTransparency = 0.7
+    clearButton.BorderSizePixel = 0
+    clearButton.Text = "清除所有"
+    clearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clearButton.TextSize = 14
+    clearButton.Font = Enum.Font.Gotham
+    clearButton.Parent = contentContainer
+    
+    local clearCorner = Instance.new("UICorner")
+    clearCorner.CornerRadius = UDim.new(0, 3)
+    clearCorner.Parent = clearButton
+    
+    local exitButton = Instance.new("TextButton")
+    exitButton.Name = "Exit"
+    exitButton.Size = UDim2.new(0.9, 0, 0, 30)
+    exitButton.Position = UDim2.new(0.05, 0, 0, 170)
+    exitButton.BackgroundColor3 = Color3.fromRGB(80, 40, 40)
+    exitButton.BackgroundTransparency = 0.7
+    exitButton.BorderSizePixel = 0
+    exitButton.Text = "退出"
+    exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    exitButton.TextSize = 14
+    exitButton.Font = Enum.Font.Gotham
+    exitButton.Parent = contentContainer
+    
+    local exitCorner = Instance.new("UICorner")
+    exitCorner.CornerRadius = UDim.new(0, 3)
+    exitCorner.Parent = exitButton
+    
+    local status = Instance.new("TextLabel")
+    status.Name = "Status"
+    status.Size = UDim2.new(1, 0, 0, 20)
+    status.Position = UDim2.new(0, 0, 0, 240)
+    status.BackgroundTransparency = 1
+    status.Text = "就绪"
+    status.TextColor3 = Color3.fromRGB(150, 150, 150)
+    status.TextSize = 12
+    status.Font = Enum.Font.Gotham
+    status.Parent = gui
+    
+    -- 缩小/展开功能
+    local function toggleMinimize()
+        isMinimized = not isMinimized
+        
+        if isMinimized then
+            -- 缩小模式
+            mainFrame.Size = minimizedSize
+            contentContainer.Visible = false
+            minimizeButton.Text = "+"
+            status.Text = "UI已缩小 - 点击+展开"
+        else
+            -- 展开模式
+            mainFrame.Size = originalSize
+            contentContainer.Visible = true
+            minimizeButton.Text = "-"
+            status.Text = "就绪"
+        end
+        
+        -- 调整圆角（缩小模式时保持顶部圆角）
+        if isMinimized then
+            titleCorner.CornerRadius = UDim.new(0, 5)
+            corner.CornerRadius = UDim.new(0, 5)
+        else
+            titleCorner.CornerRadius = UDim.new(0, 5)
+            corner.CornerRadius = UDim.new(0, 5)
+        end
+    end
+    
+    -- 绑定缩小按钮事件
+    minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+    
+    -- 确保玩家站在方块上
+    local function ensurePlayerOnBlock()
+        if not followBlock then return end
+        
+        if playerConnection then
+            playerConnection:Disconnect()
+        end
+        
+        playerConnection = runService.Heartbeat:Connect(function()
+            if not followBlock or not followBlock.Parent then
+                if playerConnection then
+                    playerConnection:Disconnect()
+                end
+                return
+            end
+            
+            local character = player.Character
+            if not character then return end
+            
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+            
+            -- 将玩家固定在方块上
+            rootPart.CFrame = CFrame.new(
+                followBlock.Position.X,
+                followBlock.Position.Y + 3,  -- 玩家站在方块上方
+                followBlock.Position.Z
+            )
+        end)
+    end
+    
+    -- 向上按钮长按检测
+    upButton.MouseButton1Down:Connect(function()
+        isUpPressed = true
+        local connection
+        connection = runService.Heartbeat:Connect(function()
+            if not isUpPressed or not followBlock then
+                if connection then
+                    connection:Disconnect()
+                end
+                return
+            end
+            currentHeight = currentHeight + 0.5
+        end)
+    end)
+    
+    upButton.MouseButton1Up:Connect(function()
+        isUpPressed = false
+    end)
+    
+    upButton.MouseLeave:Connect(function()
+        isUpPressed = false
+    end)
+    
+    -- 向下按钮长按检测
+    downButton.MouseButton1Down:Connect(function()
+        isDownPressed = true
+        local connection
+        connection = runService.Heartbeat:Connect(function()
+            if not isDownPressed or not followBlock then
+                if connection then
+                    connection:Disconnect()
+                end
+                return
+            end
+            currentHeight = currentHeight - 0.5
+        end)
+    end)
+    
+    downButton.MouseButton1Up:Connect(function()
+        isDownPressed = false
+    end)
+    
+    downButton.MouseLeave:Connect(function()
+        isDownPressed = false
+    end)
+    
+    parallelButton.MouseButton1Click:Connect(function()
+        local character = player.Character
+        if not character then return end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+        
+        if followBlock then
+            if followConnection then
+                followConnection:Disconnect()
+                followConnection = nil
+            end
+            if playerConnection then
+                playerConnection:Disconnect()
+                playerConnection = nil
+            end
+            followBlock:Destroy()
+            followBlock = nil
+            status.Text = " "
+            return
+        end
+        
+        currentHeight = rootPart.Position.Y - 3
+        
+        followBlock = Instance.new("Part")
+        followBlock.Name = "FollowBlock"
+        followBlock.Anchored = true
+        followBlock.CanCollide = true
+        followBlock.Transparency = 0.7
+        followBlock.BrickColor = BrickColor.new("Bright yellow")
+        followBlock.Size = Vector3.new(10, 1, 10)  -- 增大方块尺寸
+        followBlock.Material = Enum.Material.SmoothPlastic
+        followBlock.Parent = workspace
+        
+        table.insert(blocks, followBlock)
+        
+        -- 确保玩家站在方块上
+        ensurePlayerOnBlock()
+        
+        followConnection = runService.Heartbeat:Connect(function()
+            if not character or not character.Parent then
+                if followConnection then
+                    followConnection:Disconnect()
+                    followConnection = nil
+                end
+                if playerConnection then
+                    playerConnection:Disconnect()
+                    playerConnection = nil
+                end
+                if followBlock then
+                    followBlock:Destroy()
+                    followBlock = nil
+                end
+                return
+            end
+            
+            rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+            
+            followBlock.Position = Vector3.new(
+                rootPart.Position.X,
+                currentHeight,
+                rootPart.Position.Z
+            )
+        end)
+        
+        status.Text = " "
+    end)
+    
+    clearButton.MouseButton1Click:Connect(function()
+        for i, block in ipairs(blocks) do
+            if block and block.Parent then
+                block:Destroy()
+            end
+        end
+        
+        if followConnection then
+            followConnection:Disconnect()
+            followConnection = nil
+        end
+        
+        if playerConnection then
+            playerConnection:Disconnect()
+            playerConnection = nil
+        end
+        
+        if followBlock then
+            followBlock:Destroy()
+            followBlock = nil
+        end
+        
+        blocks = {}
+        currentHeight = 0
+        status.Text = " "
+    end)
+    
+    exitButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+        status.Text = " "
+    end)
+    
+    userInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.Insert then
+            mainFrame.Visible = not mainFrame.Visible
+            if mainFrame.Visible then
+                status.Text = " "
+            else
+                status.Text = " "
+            end
+        end
+    end)
+    
+    return gui
+end
+
+createDraggableUI()
