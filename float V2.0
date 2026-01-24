@@ -19,8 +19,9 @@ local playerConnection = nil
 
 local isMinimized = false
 local originalSize = nil
-local minimizedSize = UDim2.new(0, 200, 0, 30)
+local minimizedSize = UDim2.new(0, 176, 0, 26)
 local minimizeButton = nil
+local closeButton = nil
 local contentContainer = nil
 
 local function createDraggableUI()
@@ -32,8 +33,8 @@ local function createDraggableUI()
     
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "Main"
-    mainFrame.Size = UDim2.new(0, 200, 0, 180)
-    mainFrame.Position = UDim2.new(0, 10, 0.5, -90)
+    mainFrame.Size = UDim2.new(0, 176, 0, 132)
+    mainFrame.Position = UDim2.new(0, 10, 0.05, 0)
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     mainFrame.BackgroundTransparency = 0.8
     mainFrame.BorderSizePixel = 0
@@ -50,8 +51,8 @@ local function createDraggableUI()
     
     contentContainer = Instance.new("Frame")
     contentContainer.Name = "ContentContainer"
-    contentContainer.Size = UDim2.new(1, 0, 1, -30)
-    contentContainer.Position = UDim2.new(0, 0, 0, 30)
+    contentContainer.Size = UDim2.new(1, 0, 1, -26)
+    contentContainer.Position = UDim2.new(0, 0, 0, 26)
     contentContainer.BackgroundTransparency = 1
     contentContainer.BorderSizePixel = 0
     contentContainer.Parent = mainFrame
@@ -122,14 +123,14 @@ local function createDraggableUI()
     
     local titleBar = Instance.new("TextLabel")
     titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.Size = UDim2.new(1, 0, 0, 26)
     titleBar.Position = UDim2.new(0, 0, 0, 0)
     titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     titleBar.BackgroundTransparency = 0.7
     titleBar.BorderSizePixel = 0
     titleBar.Text = "float V2.0"
     titleBar.TextColor3 = Color3.fromRGB(200, 200, 200)
-    titleBar.TextSize = 16
+    titleBar.TextSize = 15
     titleBar.Font = Enum.Font.Gotham
     titleBar.Parent = mainFrame
     
@@ -139,8 +140,8 @@ local function createDraggableUI()
     
     minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
-    minimizeButton.Size = UDim2.new(0, 25, 0, 25)
-    minimizeButton.Position = UDim2.new(1, -30, 0, 2)
+    minimizeButton.Size = UDim2.new(0, 22, 0, 22)
+    minimizeButton.Position = UDim2.new(1, -80, 0, 2)
     minimizeButton.AnchorPoint = Vector2.new(1, 0)
     minimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
     minimizeButton.BackgroundTransparency = 0.7
@@ -155,16 +156,34 @@ local function createDraggableUI()
     minimizeCorner.CornerRadius = UDim.new(0, 3)
     minimizeCorner.Parent = minimizeButton
     
+    closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 22, 0, 22)
+    closeButton.Position = UDim2.new(1, -28, 0, 2)
+    closeButton.AnchorPoint = Vector2.new(1, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+    closeButton.BackgroundTransparency = 0.7
+    closeButton.BorderSizePixel = 0
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 15
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 3)
+    closeCorner.Parent = closeButton
+    
     local parallelButton = Instance.new("TextButton")
     parallelButton.Name = "Parallel"
-    parallelButton.Size = UDim2.new(0.9, 0, 0, 30)
+    parallelButton.Size = UDim2.new(0.9, 0, 0, 26)
     parallelButton.Position = UDim2.new(0.05, 0, 0, 10)
     parallelButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     parallelButton.BackgroundTransparency = 0.7
     parallelButton.BorderSizePixel = 0
-    parallelButton.Text = "开启float"
+    parallelButton.Text = "启动float"
     parallelButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    parallelButton.TextSize = 14
+    parallelButton.TextSize = 13
     parallelButton.Font = Enum.Font.Gotham
     parallelButton.Parent = contentContainer
     
@@ -174,14 +193,14 @@ local function createDraggableUI()
     
     local upButton = Instance.new("TextButton")
     upButton.Name = "Up"
-    upButton.Size = UDim2.new(0.9, 0, 0, 30)
-    upButton.Position = UDim2.new(0.05, 0, 0, 50)
+    upButton.Size = UDim2.new(0.9, 0, 0, 26)
+    upButton.Position = UDim2.new(0.05, 0, 0, 46)
     upButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     upButton.BackgroundTransparency = 0.7
     upButton.BorderSizePixel = 0
     upButton.Text = "向上一格"
     upButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    upButton.TextSize = 14
+    upButton.TextSize = 13
     upButton.Font = Enum.Font.Gotham
     upButton.Parent = contentContainer
     
@@ -191,14 +210,14 @@ local function createDraggableUI()
     
     local downButton = Instance.new("TextButton")
     downButton.Name = "Down"
-    downButton.Size = UDim2.new(0.9, 0, 0, 30)
-    downButton.Position = UDim2.new(0.05, 0, 0, 90)
+    downButton.Size = UDim2.new(0.9, 0, 0, 26)
+    downButton.Position = UDim2.new(0.05, 0, 0, 82)
     downButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     downButton.BackgroundTransparency = 0.7
     downButton.BorderSizePixel = 0
     downButton.Text = "向下一格"
     downButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    downButton.TextSize = 14
+    downButton.TextSize = 13
     downButton.Font = Enum.Font.Gotham
     downButton.Parent = contentContainer
     
@@ -206,48 +225,14 @@ local function createDraggableUI()
     downCorner.CornerRadius = UDim.new(0, 3)
     downCorner.Parent = downButton
     
-    local clearButton = Instance.new("TextButton")
-    clearButton.Name = "Clear"
-    clearButton.Size = UDim2.new(0.9, 0, 0, 30)
-    clearButton.Position = UDim2.new(0.05, 0, 0, 130)
-    clearButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
-    clearButton.BackgroundTransparency = 0.7
-    clearButton.BorderSizePixel = 0
-    clearButton.Text = "清除所有"
-    clearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearButton.TextSize = 14
-    clearButton.Font = Enum.Font.Gotham
-    clearButton.Parent = contentContainer
-    
-    local clearCorner = Instance.new("UICorner")
-    clearCorner.CornerRadius = UDim.new(0, 3)
-    clearCorner.Parent = clearButton
-    
-    local exitButton = Instance.new("TextButton")
-    exitButton.Name = "Exit"
-    exitButton.Size = UDim2.new(0.9, 0, 0, 30)
-    exitButton.Position = UDim2.new(0.05, 0, 0, 170)
-    exitButton.BackgroundColor3 = Color3.fromRGB(80, 40, 40)
-    exitButton.BackgroundTransparency = 0.7
-    exitButton.BorderSizePixel = 0
-    exitButton.Text = "退出"
-    exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    exitButton.TextSize = 14
-    exitButton.Font = Enum.Font.Gotham
-    exitButton.Parent = contentContainer
-    
-    local exitCorner = Instance.new("UICorner")
-    exitCorner.CornerRadius = UDim.new(0, 3)
-    exitCorner.Parent = exitButton
-    
     local status = Instance.new("TextLabel")
     status.Name = "Status"
-    status.Size = UDim2.new(1, 0, 0, 20)
-    status.Position = UDim2.new(0, 0, 0, 240)
+    status.Size = UDim2.new(1, 0, 0, 18)
+    status.Position = UDim2.new(0, 0, 0, 200)
     status.BackgroundTransparency = 1
     status.Text = "就绪"
     status.TextColor3 = Color3.fromRGB(150, 150, 150)
-    status.TextSize = 12
+    status.TextSize = 11
     status.Font = Enum.Font.Gotham
     status.Parent = gui
     
@@ -274,6 +259,11 @@ local function createDraggableUI()
     end
     
     minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+    
+    closeButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+        status.Text = " "
+    end)
     
     local function ensurePlayerOnBlock()
         if not followBlock then return end
@@ -413,38 +403,6 @@ local function createDraggableUI()
             )
         end)
         
-        status.Text = " "
-    end)
-    
-    clearButton.MouseButton1Click:Connect(function()
-        for i, block in ipairs(blocks) do
-            if block and block.Parent then
-                block:Destroy()
-            end
-        end
-        
-        if followConnection then
-            followConnection:Disconnect()
-            followConnection = nil
-        end
-        
-        if playerConnection then
-            playerConnection:Disconnect()
-            playerConnection = nil
-        end
-        
-        if followBlock then
-            followBlock:Destroy()
-            followBlock = nil
-        end
-        
-        blocks = {}
-        currentHeight = 0
-        status.Text = " "
-    end)
-    
-    exitButton.MouseButton1Click:Connect(function()
-        mainFrame.Visible = false
         status.Text = " "
     end)
     
