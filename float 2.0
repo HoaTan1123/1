@@ -1,0 +1,405 @@
+local player = game:GetService("Players").LocalPlayer
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local coreGui = game:GetService("CoreGui")
+
+local blocks = {}
+local followBlock = nil
+local followConnection = nil
+local isDragging = false
+local dragStartPos = nil
+local uiStartPos = nil
+local gui = nil
+local mainFrame = nil
+local isUpPressed = false
+local isDownPressed = false
+local currentHeight = 0
+local isPlayerOnBlock = false
+local playerConnection = nil
+
+local isMinimized = false
+local originalSize = nil
+local minimizedSize = UDim2.new(0, 176, 0, 26)
+local minimizeButton = nil
+local closeButton = nil
+local contentContainer = nil
+
+local function createDraggableUI()
+    gui = Instance.new("ScreenGui")
+    gui.Name = "GameMenu"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = coreGui
+    
+    mainFrame = Instance.new("Frame")
+    mainFrame.Name = "Main"
+    mainFrame.Size = UDim2.new(0, 176, 0, 132)
+    mainFrame.Position = UDim2.new(0, 10, 0.0005, 0) -- 尝试0.0005的比例
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.BackgroundTransparency = 0.8
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Visible = true
+    mainFrame.Active = true
+    mainFrame.Selectable = true
+    mainFrame.Parent = gui
+    
+    originalSize = mainFrame.Size
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = mainFrame
+    
+    contentContainer = Instance.new("Frame")
+    contentContainer.Name = "ContentContainer"
+    contentContainer.Size = UDim2.new(1, 0, 1, -26)
+    contentContainer.Position = UDim2.new(0, 0, 0, 26)
+    contentContainer.BackgroundTransparency = 1
+    contentContainer.BorderSizePixel = 0
+    contentContainer.Parent = mainFrame
+    
+    local function onInputBegan(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+            local framePos = Vector2.new(
+                mainFrame.AbsolutePosition.X,
+                mainFrame.AbsolutePosition.Y
+            )
+            local frameSize = Vector2.new(
+                mainFrame.AbsoluteSize.X,
+                mainFrame.AbsoluteSize.Y
+            )
+            
+            if mousePos.X >= framePos.X and mousePos.X <= framePos.X + frameSize.X and
+               mousePos.Y >= framePos.Y and mousePos.Y <= framePos.Y + frameSize.Y then
+               
+                isDragging = true
+                dragStartPos = mousePos
+                uiStartPos = UDim2.new(
+                    mainFrame.Position.X.Scale,
+                    mainFrame.Position.X.Offset,
+                    mainFrame.Position.Y.Scale,
+                    mainFrame.Position.Y.Offset
+                )
+                
+                local dragConnection
+                dragConnection = runService.Heartbeat:Connect(function()
+                    if not isDragging or not mainFrame or not mainFrame.Parent then
+                        if dragConnection then
+                            dragConnection:Disconnect()
+                        end
+                        return
+                    end
+                    
+                    local currentMousePos = userInputService:GetMouseLocation()
+                    local delta = currentMousePos - dragStartPos
+                    
+                    mainFrame.Position = UDim2.new(
+                        uiStartPos.X.Scale,
+                        uiStartPos.X.Offset + delta.X,
+                        uiStartPos.Y.Scale,
+                        uiStartPos.Y.Offset + delta.Y
+                    )
+                end)
+                
+                local endConnection
+                endConnection = userInputService.InputEnded:Connect(function(endInput)
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                        isDragging = false
+                        if dragConnection then
+                            dragConnection:Disconnect()
+                        end
+                        if endConnection then
+                            endConnection:Disconnect()
+                        end
+                    end
+                end)
+            end
+        end
+    end
+    
+    userInputService.InputBegan:Connect(onInputBegan)
+    
+    local titleBar = Instance.new("TextLabel")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 26)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    titleBar.BackgroundTransparency = 0.7
+    titleBar.BorderSizePixel = 0
+    titleBar.Text = "float V2.0"
+    titleBar.TextColor3 = Color3.fromRGB(200, 200, 200)
+    titleBar.TextSize = 15
+    titleBar.Font = Enum.Font.Gotham
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 5)
+    titleCorner.Parent = titleBar
+    
+    closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 22, 0, 22)
+    closeButton.Position = UDim2.new(1, -28, 0, 2)
+    closeButton.AnchorPoint = Vector2.new(1, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+    closeButton.BackgroundTransparency = 0.7
+    closeButton.BorderSizePixel = 0
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 15
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 3)
+    closeCorner.Parent = closeButton
+    
+    minimizeButton = Instance.new("TextButton")
+    minimizeButton.Name = "MinimizeButton"
+    minimizeButton.Size = UDim2.new(0, 22, 0, 22)
+    minimizeButton.Position = UDim2.new(1, -55, 0, 2)
+    minimizeButton.AnchorPoint = Vector2.new(1, 0)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    minimizeButton.BackgroundTransparency = 0.7
+    minimizeButton.BorderSizePixel = 0
+    minimizeButton.Text = "-"
+    minimizeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    minimizeButton.TextSize = 18
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.Parent = titleBar
+    
+    local minimizeCorner = Instance.new("UICorner")
+    minimizeCorner.CornerRadius = UDim.new(0, 3)
+    minimizeCorner.Parent = minimizeButton
+    
+    local parallelButton = Instance.new("TextButton")
+    parallelButton.Name = "Parallel"
+    parallelButton.Size = UDim2.new(0.9, 0, 0, 26)
+    parallelButton.Position = UDim2.new(0.05, 0, 0, 10)
+    parallelButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    parallelButton.BackgroundTransparency = 0.7
+    parallelButton.BorderSizePixel = 0
+    parallelButton.Text = "启动float"
+    parallelButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    parallelButton.TextSize = 13
+    parallelButton.Font = Enum.Font.Gotham
+    parallelButton.Parent = contentContainer
+    
+    local parallelCorner = Instance.new("UICorner")
+    parallelCorner.CornerRadius = UDim.new(0, 3)
+    parallelCorner.Parent = parallelButton
+    
+    local upButton = Instance.new("TextButton")
+    upButton.Name = "Up"
+    upButton.Size = UDim2.new(0.9, 0, 0, 26)
+    upButton.Position = UDim2.new(0.05, 0, 0, 46)
+    upButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    upButton.BackgroundTransparency = 0.7
+    upButton.BorderSizePixel = 0
+    upButton.Text = "向上一格"
+    upButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    upButton.TextSize = 13
+    upButton.Font = Enum.Font.Gotham
+    upButton.Parent = contentContainer
+    
+    local upCorner = Instance.new("UICorner")
+    upCorner.CornerRadius = UDim.new(0, 3)
+    upCorner.Parent = upButton
+    
+    local downButton = Instance.new("TextButton")
+    downButton.Name = "Down"
+    downButton.Size = UDim2.new(0.9, 0, 0, 26)
+    downButton.Position = UDim2.new(0.05, 0, 0, 82)
+    downButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    downButton.BackgroundTransparency = 0.7
+    downButton.BorderSizePixel = 0
+    downButton.Text = "向下一格"
+    downButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    downButton.TextSize = 13
+    downButton.Font = Enum.Font.Gotham
+    downButton.Parent = contentContainer
+    
+    local downCorner = Instance.new("UICorner")
+    downCorner.CornerRadius = UDim.new(0, 3)
+    downCorner.Parent = downButton
+    
+    local function toggleMinimize()
+        isMinimized = not isMinimized
+        
+        if isMinimized then
+            mainFrame.Size = minimizedSize
+            contentContainer.Visible = false
+            minimizeButton.Text = "+"
+        else
+            mainFrame.Size = originalSize
+            contentContainer.Visible = true
+            minimizeButton.Text = "-"
+        end
+        
+        if isMinimized then
+            titleCorner.CornerRadius = UDim.new(0, 5)
+            corner.CornerRadius = UDim.new(0, 5)
+        else
+            titleCorner.CornerRadius = UDim.new(0, 5)
+            corner.CornerRadius = UDim.new(0, 5)
+        end
+    end
+    
+    minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+    
+    closeButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+    end)
+    
+    local function ensurePlayerOnBlock()
+        if not followBlock then return end
+        
+        if playerConnection then
+            playerConnection:Disconnect()
+        end
+        
+        playerConnection = runService.Heartbeat:Connect(function()
+            if not followBlock or not followBlock.Parent then
+                if playerConnection then
+                    playerConnection:Disconnect()
+                end
+                return
+            end
+            
+            local character = player.Character
+            if not character then return end
+            
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+            
+            rootPart.CFrame = CFrame.new(
+                followBlock.Position.X,
+                followBlock.Position.Y + 3,
+                followBlock.Position.Z
+            )
+        end)
+    end
+    
+    upButton.MouseButton1Down:Connect(function()
+        isUpPressed = true
+        local connection
+        connection = runService.Heartbeat:Connect(function()
+            if not isUpPressed or not followBlock then
+                if connection then
+                    connection:Disconnect()
+                end
+                return
+            end
+            currentHeight = currentHeight + 0.5
+        end)
+    end)
+    
+    upButton.MouseButton1Up:Connect(function()
+        isUpPressed = false
+    end)
+    
+    upButton.MouseLeave:Connect(function()
+        isUpPressed = false
+    end)
+    
+    downButton.MouseButton1Down:Connect(function()
+        isDownPressed = true
+        local connection
+        connection = runService.Heartbeat:Connect(function()
+            if not isDownPressed or not followBlock then
+                if connection then
+                    connection:Disconnect()
+                end
+                return
+            end
+            currentHeight = currentHeight - 0.5
+        end)
+    end)
+    
+    downButton.MouseButton1Up:Connect(function()
+        isDownPressed = false
+    end)
+    
+    downButton.MouseLeave:Connect(function()
+        isDownPressed = false
+    end)
+    
+    parallelButton.MouseButton1Click:Connect(function()
+        local character = player.Character
+        if not character then return end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+        
+        if followBlock then
+            if followConnection then
+                followConnection:Disconnect()
+                followConnection = nil
+            end
+            if playerConnection then
+                playerConnection:Disconnect()
+                playerConnection = nil
+            end
+            followBlock:Destroy()
+            followBlock = nil
+            return
+        end
+        
+        currentHeight = rootPart.Position.Y - 3
+        
+        followBlock = Instance.new("Part")
+        followBlock.Name = "FollowBlock"
+        followBlock.Anchored = true
+        followBlock.CanCollide = true
+        followBlock.Transparency = 0.7
+        followBlock.BrickColor = BrickColor.new("Bright yellow")
+        followBlock.Size = Vector3.new(10, 1, 10)
+        followBlock.Material = Enum.Material.SmoothPlastic
+        followBlock.Parent = workspace
+        
+        table.insert(blocks, followBlock)
+        
+        ensurePlayerOnBlock()
+        
+        followConnection = runService.Heartbeat:Connect(function()
+            if not character or not character.Parent then
+                if followConnection then
+                    followConnection:Disconnect()
+                    followConnection = nil
+                end
+                if playerConnection then
+                    playerConnection:Disconnect()
+                    playerConnection = nil
+                end
+                if followBlock then
+                    followBlock:Destroy()
+                    followBlock = nil
+                end
+                return
+            end
+            
+            rootPart = character:FindFirstChild("HumanoidRootPart")
+            if not rootPart then return end
+            
+            followBlock.Position = Vector3.new(
+                rootPart.Position.X,
+                currentHeight,
+                rootPart.Position.Z
+            )
+        end)
+    end)
+    
+    userInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.Insert then
+            mainFrame.Visible = not mainFrame.Visible
+        end
+    end)
+    
+    return gui
+end
+
+createDraggableUI()
