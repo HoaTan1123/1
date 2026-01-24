@@ -1,0 +1,1130 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Window = Rayfield:CreateWindow({
+   Name = "ESP脚本1.5",
+   LoadingTitle = "脚本加载中",
+   LoadingSubtitle = "正在初始化...",
+   ConfigurationSaving = {Enabled = true, FolderName = "ESP15"},
+   KeySystem = false
+})
+local ESPTab = Window:CreateTab("透视系统", 4483362458)
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local ESPEnabled = false
+local TracerEnabled = true
+local SkeletonEnabled = true
+local HighlightEnabled = true
+local ESPTeamCheck = false
+local WallCheckEnabled = false
+local EnhancedScanEnabled = false
+local TeamDetectionEnabled = true
+local FriendESPEnabled = true
+local FriendTeamColor = Color3.fromRGB(0, 100, 255)
+local FriendEnemyColor = Color3.fromRGB(150, 0, 0)
+ESPTab:CreateToggle({Name = "透视总开关", CurrentValue = false, Callback = function(v) ESPEnabled = v end})
+ESPTab:CreateToggle({Name = "天线绘制", CurrentValue = true, Callback = function(v) TracerEnabled = v end})
+ESPTab:CreateToggle({Name = "骨骼绘制", CurrentValue = true, Callback = function(v) SkeletonEnabled = v end})
+ESPTab:CreateToggle({Name = "内透Highlight", CurrentValue = true, Callback = function(v) HighlightEnabled = v end})
+ESPTab:CreateToggle({Name = "透视亮队友", CurrentValue = false, Callback = function(v) ESPTeamCheck = v end})
+ESPTab:CreateToggle({Name = "墙后检测", CurrentValue = false, Callback = function(v) WallCheckEnabled = v end})
+ESPTab:CreateToggle({Name = "增强扫描", CurrentValue = false, Callback = function(v) EnhancedScanEnabled = v end})
+ESPTab:CreateToggle({Name = "队伍检测", CurrentValue = true, Callback = function(v) TeamDetectionEnabled = v end})
+ESPTab:CreateToggle({Name = "透视好友", CurrentValue = true, Callback = function(v) FriendESPEnabled = v end})
+ESPTab:CreateColorPicker({
+    Name = "好友(队友)颜色",
+    Color = Color3.fromRGB(0, 100, 255),
+    Callback = function(Value)
+        FriendTeamColor = Value
+    end
+})
+ESPTab:CreateColorPicker({
+    Name = "好友(敌人)颜色",
+    Color = Color3.fromRGB(150, 0, 0),
+    Callback = function(Value)
+        FriendEnemyColor = Value
+    end
+})
+local Tracers = {}
+local Skeletons = {}
+local Highlights = {}
+local PlayerESPStates = {}
+local PlayerCoroutines = {}
+local CharacterAddedConnections = {}
+local CharacterRemovingConnections = {}
+local Bones = {
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    {"LowerTorso", "LeftUpperLeg"}, {"LowerTorso", "RightUpperLeg"},
+    {"LeftUpperLeg", "LeftLowerLeg"}, {"RightUpperLeg", "RightLowerLeg"},
+    {"LeftLowerLeg", "LeftFoot"}, {"RightLowerLeg", "RightFoot"},
+    {"UpperTorso", "LeftUpperArm"}, {"UpperTorso", "RightUpperArm"},
+    {"LeftUpperArm", "LeftLowerArm"}, {"RightUpperArm", "RightLowerArm"},
+    {"LeftLowerArm", "LeftHand"}, {"RightLowerArm", "RightHand"}
+}
+local DeathCheckTimer = 0
+local DeathCheckInterval = 0.5
+local ESPRefreshTimer = 0
+local ESPRefreshInterval = 0.5
+local HighlightRepairTimer = 0
+local HighlightRepairInterval = 1
+local WallCheckTimer = 0
+local WallCheckInterval = 0.3
+local PlayerDeathStatus = {}
+local WallCheckCache = {}
+local function IsFriend(plr)
+    if not FriendESPEnabled then return false end
+    if plr == LocalPlayer then return false end
+    local success, result = pcall(function()
+        return plr:IsFriendsWith(LocalPlayer.UserId)
+    end)
+    if success and result then
+        return true
+    end
+    return false
+end
+local function CleanupPlayerESP(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    if PlayerCoroutines[plr] then
+        coroutine.close(PlayerCoroutines[plr])
+        PlayerCoroutines[plr] = nil
+    end
+    if CharacterAddedConnections[plr] then
+        CharacterAddedConnections[plr]:Disconnect()
+        CharacterAddedConnections[plr] = nil
+    end
+    if CharacterRemovingConnections[plr] then
+        CharacterRemovingConnections[plr]:Disconnect()
+        CharacterRemovingConnections[plr] = nil
+    end
+    PlayerDeathStatus[plr] = nil
+    WallCheckCache[plr] = nil
+    PlayerESPStates[plr] = nil
+end
+local function CreateTracer(plr)
+    if Tracers[plr] then 
+        Tracers[plr]:Remove()
+        Tracers[plr] = nil
+    end
+    local line = Drawing.new("Line")
+    line.Thickness = 1
+    line.Transparency = 1
+    Tracers[plr] = line
+end
+local function CreateSkeleton(plr)
+    if Skeletons[plr] then
+        for _, bone in ipairs(Skeletons[plr]) do
+            bone:Remove()
+        end
+        Skeletons[plr] = nil
+    end
+    local bones = {}
+    for i = 1, #Bones do
+        local line = Drawing.new("Line")
+        line.Thickness = 1
+        line.Transparency = 1
+        table.insert(bones, line)
+    end
+    Skeletons[plr] = bones
+end
+local function CreateHighlight(plr)
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+    if plr and plr.Character then
+        local hl = Instance.new("Highlight")
+        hl.FillTransparency = 0.6
+        hl.OutlineTransparency = 0.3
+        hl.Parent = plr.Character
+        Highlights[plr] = hl
+        PlayerESPStates[plr] = PlayerESPStates[plr] or {}
+        PlayerESPStates[plr].lastHighlightCreated = tick()
+        PlayerESPStates[plr].highlightExists = true
+    end
+end
+local function RepairPlayerHighlight(plr)
+    if not plr or not plr.Character then return end
+    if not Highlights[plr] then
+        CreateHighlight(plr)
+        return
+    end
+    local char = plr.Character
+    local hl = Highlights[plr]
+    if hl.Parent ~= char then
+        hl.Parent = char
+    end
+    if not hl:IsDescendantOf(game) then
+        CreateHighlight(plr)
+    end
+    if PlayerESPStates[plr] and PlayerESPStates[plr].lastHighlightCreated then
+        if tick() - PlayerESPStates[plr].lastHighlightCreated > 10 then
+            CreateHighlight(plr)
+        end
+    end
+end
+local function SetupPlayerESP(plr)
+    if plr == LocalPlayer then return end
+    CleanupPlayerESP(plr)
+    PlayerESPStates[plr] = {
+        needsHighlightRepair = false,
+        lastHighlightCreated = 0,
+        character = plr.Character,
+        highlightExists = false
+    }
+    if plr.Character then
+        CreateSkeleton(plr)
+        PlayerESPStates[plr].character = plr.Character
+    end
+    CharacterAddedConnections[plr] = plr.CharacterAdded:Connect(function(char)
+        PlayerESPStates[plr].character = char
+        PlayerESPStates[plr].needsHighlightRepair = true
+        local co = coroutine.create(function()
+            for i = 1, 10 do
+                if plr and plr.Character and plr.Character:IsDescendantOf(Workspace) then
+                    task.wait(0.1 * i)
+                    CreateSkeleton(plr)
+                else
+                    break
+                end
+            end
+        end)
+        PlayerCoroutines[plr] = co
+        coroutine.resume(co)
+    end)
+    CharacterRemovingConnections[plr] = plr.CharacterRemoving:Connect(function(char)
+        if Skeletons[plr] then
+            for _, bone in ipairs(Skeletons[plr]) do
+                bone:Remove()
+            end
+            Skeletons[plr] = nil
+        end
+        if Highlights[plr] then
+            Highlights[plr]:Destroy()
+            Highlights[plr] = nil
+        end
+        PlayerESPStates[plr].character = nil
+        PlayerESPStates[plr].needsHighlightRepair = true
+        PlayerESPStates[plr].highlightExists = false
+    end)
+end
+local function RealWallCheck(plr)
+    if not plr or not plr.Character then return false end
+    local head = plr.Character:FindFirstChild("Head")
+    if not head then return false end
+    local origin = Camera.CFrame.Position
+    local target = head.Position
+    local direction = (target - origin).Unit
+    local distance = (target - origin).Magnitude
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, plr.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.IgnoreWater = true
+    local rayResult = Workspace:Raycast(origin, direction * distance, rayParams)
+    if rayResult then
+        local hitPart = rayResult.Instance
+        if hitPart then
+            local hitCharacter = hitPart:FindFirstAncestorOfClass("Model")
+            if hitCharacter and hitCharacter == plr.Character then
+                return true
+            else
+                return false
+            end
+        end
+    end
+    return true
+end
+local function GetWallCheck(plr)
+    if not WallCheckEnabled then
+        return true
+    end
+    if WallCheckCache[plr] and WallCheckCache[plr].lastCheck and tick() - WallCheckCache[plr].lastCheck < WallCheckInterval then
+        return WallCheckCache[plr].isVisible
+    end
+    local isVisible = RealWallCheck(plr)
+    WallCheckCache[plr] = {
+        isVisible = isVisible,
+        lastCheck = tick()
+    }
+    return isVisible
+end
+local function IsTeammate(plr)
+    if not TeamDetectionEnabled then
+        return false
+    end
+    if plr == LocalPlayer then
+        return true
+    end
+    if LocalPlayer.Team and plr.Team then
+        return plr.Team == LocalPlayer.Team
+    end
+    return false
+end
+local function GetPlayerColor(plr)
+    if IsFriend(plr) then
+        if IsTeammate(plr) then
+            return FriendTeamColor
+        else
+            return FriendEnemyColor
+        end
+    end
+    if IsTeammate(plr) then
+        return Color3.fromRGB(0, 255, 0)
+    else
+        if WallCheckEnabled then
+            local isVisible = GetWallCheck(plr)
+            if isVisible then
+                return Color3.fromRGB(255, 0, 0)
+            else
+                return Color3.fromRGB(255, 255, 0)
+            end
+        else
+            return Color3.fromRGB(255, 0, 0)
+        end
+    end
+end
+local function UpdatePlayerDeathStatus()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        local isDead = false
+        local char = plr.Character
+        if not char then
+            isDead = true
+        else
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if not humanoid or humanoid.Health <= 0 then
+                isDead = true
+            end
+        end
+        if PlayerDeathStatus[plr] ~= isDead then
+            PlayerDeathStatus[plr] = isDead
+            if not isDead then
+                PlayerESPStates[plr] = PlayerESPStates[plr] or {}
+                PlayerESPStates[plr].needsHighlightRepair = true
+            end
+            if Tracers[plr] then
+                Tracers[plr].Visible = not isDead
+            end
+            if Skeletons[plr] then
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = not isDead
+                end
+            end
+            if Highlights[plr] then
+                Highlights[plr].Enabled = not isDead
+            end
+        end
+    end
+    for plr, _ in pairs(PlayerDeathStatus) do
+        if not Players:FindFirstChild(plr.Name) then
+            CleanupPlayerESP(plr)
+        end
+    end
+end
+local function RepairAllHighlights()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        if PlayerESPStates[plr] and PlayerESPStates[plr].needsHighlightRepair then
+            RepairPlayerHighlight(plr)
+            PlayerESPStates[plr].needsHighlightRepair = false
+        end
+        if plr.Character and not Highlights[plr] and HighlightEnabled then
+            CreateHighlight(plr)
+        end
+        if Highlights[plr] and not Highlights[plr]:IsDescendantOf(game) then
+            CreateHighlight(plr)
+        end
+    end
+end
+local frameDelay = 0.033
+local lastFrameTime = 0
+RunService.RenderStepped:Connect(function(deltaTime)
+    lastFrameTime = lastFrameTime + deltaTime
+    if lastFrameTime < frameDelay then return end
+    lastFrameTime = 0
+    if not ESPEnabled then
+        for _, line in pairs(Tracers) do 
+            line.Visible = false 
+        end
+        for _, bones in pairs(Skeletons) do 
+            for _, bone in ipairs(bones) do 
+                bone.Visible = false 
+            end 
+        end
+        for _, hl in pairs(Highlights) do 
+            hl.Enabled = false 
+        end
+        return
+    end
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        local char = plr.Character
+        local head = char and char:FindFirstChild("Head")
+        if not char or not head then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue
+        end
+        if PlayerDeathStatus[plr] == true then 
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue 
+        end
+        local isTeammate = IsTeammate(plr)
+        if isTeammate and ESPTeamCheck == false then
+            if Tracers[plr] then Tracers[plr].Visible = false end
+            if Skeletons[plr] then 
+                for _, bone in ipairs(Skeletons[plr]) do
+                    bone.Visible = false
+                end
+            end
+            if Highlights[plr] then Highlights[plr].Enabled = false end
+            continue
+        end
+        local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+        local playerColor = GetPlayerColor(plr)
+        if TracerEnabled then
+            if not Tracers[plr] then CreateTracer(plr) end
+            if onScreen then
+                Tracers[plr].From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                Tracers[plr].To = Vector2.new(headPos.X, headPos.Y)
+                Tracers[plr].Color = playerColor
+                Tracers[plr].Visible = true
+            else
+                Tracers[plr].Visible = false
+            end
+        elseif Tracers[plr] then
+            Tracers[plr].Visible = false
+        end
+        if SkeletonEnabled then
+            if not Skeletons[plr] then CreateSkeleton(plr) end
+            local bones = Skeletons[plr]
+            if onScreen then
+                local updatedBones = 0
+                for i, bone in ipairs(Bones) do
+                    local p1 = char:FindFirstChild(bone[1])
+                    local p2 = char:FindFirstChild(bone[2])
+                    if p1 and p2 then
+                        local pos1, vis1 = Camera:WorldToViewportPoint(p1.Position)
+                        local pos2, vis2 = Camera:WorldToViewportPoint(p2.Position)
+                        if vis1 and vis2 then
+                            bones[i].From = Vector2.new(pos1.X, pos1.Y)
+                            bones[i].To = Vector2.new(pos2.X, pos2.Y)
+                            bones[i].Color = playerColor
+                            bones[i].Visible = true
+                            updatedBones = updatedBones + 1
+                        else
+                            bones[i].Visible = false
+                        end
+                    else
+                        bones[i].Visible = false
+                    end
+                end
+                if updatedBones == 0 then
+                    for _, bone in ipairs(bones) do
+                        bone.Visible = false
+                    end
+                end
+            else
+                for _, bone in ipairs(bones) do
+                    bone.Visible = false
+                end
+            end
+        elseif Skeletons[plr] then
+            for _, bone in ipairs(Skeletons[plr]) do
+                bone.Visible = false
+            end
+        end
+        if HighlightEnabled then
+            if not Highlights[plr] then 
+                CreateHighlight(plr)
+            elseif Highlights[plr] then
+                if not Highlights[plr]:IsDescendantOf(game) or Highlights[plr].Parent ~= char then
+                    CreateHighlight(plr)
+                else
+                    Highlights[plr].FillColor = playerColor
+                    if IsFriend(plr) then
+                        if IsTeammate(plr) then
+                            Highlights[plr].OutlineColor = Color3.fromRGB(0, 50, 255)
+                        else
+                            Highlights[plr].OutlineColor = Color3.fromRGB(120, 0, 0)
+                        end
+                    elseif isTeammate then
+                        Highlights[plr].OutlineColor = Color3.fromRGB(0, 180, 0)
+                    else
+                        if WallCheckEnabled then
+                            local isVisible = GetWallCheck(plr)
+                            if isVisible then
+                                Highlights[plr].OutlineColor = Color3.fromRGB(180, 0, 0)
+                            else
+                                Highlights[plr].OutlineColor = Color3.fromRGB(180, 180, 0)
+                            end
+                        else
+                            Highlights[plr].OutlineColor = Color3.fromRGB(180, 0, 0)
+                        end
+                    end
+                    Highlights[plr].Enabled = true
+                end
+            end
+        else
+            if Highlights[plr] then
+                Highlights[plr].Enabled = false
+            end
+        end
+    end
+    for plr, _ in pairs(Tracers) do
+        if not Players:FindFirstChild(plr.Name) then
+            CleanupPlayerESP(plr)
+        end
+    end
+end)
+RunService.Heartbeat:Connect(function(deltaTime)
+    DeathCheckTimer = DeathCheckTimer + deltaTime
+    ESPRefreshTimer = ESPRefreshTimer + deltaTime
+    HighlightRepairTimer = HighlightRepairTimer + deltaTime
+    WallCheckTimer = WallCheckTimer + deltaTime
+    local currentDeathCheckInterval = EnhancedScanEnabled and 0.2 or 0.5
+    local currentESPRefreshInterval = EnhancedScanEnabled and 0.2 or 0.5
+    if DeathCheckTimer >= currentDeathCheckInterval then
+        DeathCheckTimer = 0
+        UpdatePlayerDeathStatus()
+    end
+    if ESPRefreshTimer >= currentESPRefreshInterval then
+        ESPRefreshTimer = 0
+        for plr, cache in pairs(WallCheckCache) do
+            if cache.lastCheck and tick() - cache.lastCheck > 2 then
+                WallCheckCache[plr] = nil
+            end
+        end
+    end
+    if HighlightRepairTimer >= HighlightRepairInterval then
+        HighlightRepairTimer = 0
+        RepairAllHighlights()
+    end
+    if WallCheckTimer >= WallCheckInterval then
+        WallCheckTimer = 0
+        if WallCheckEnabled and ESPEnabled then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr == LocalPlayer then continue end
+                if plr.Character and not PlayerDeathStatus[plr] then
+                    GetWallCheck(plr)
+                end
+            end
+        end
+    end
+end)
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= LocalPlayer then
+        PlayerDeathStatus[plr] = false
+        SetupPlayerESP(plr)
+    end
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    CleanupPlayerESP(plr)
+end)
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then
+        PlayerDeathStatus[plr] = false
+        SetupPlayerESP(plr)
+    end
+end
+local AntiKickTab = Window:CreateTab("防踢系统", 4483362458)
+local MasterEnabled = false
+local backupHooks = {}
+local activeConnections = {}
+local fakeRemotes = {}
+local function SetupHookProtection()
+    local mt = getrawmetatable(game)
+    setreadonly(mt, false)
+    local oldNamecall = mt.__namecall
+    mt.__namecall = newcclosure(function(Self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" and Self == game.Players.LocalPlayer then
+            return
+        end
+        return oldNamecall(Self, ...)
+    end)
+    setreadonly(mt, true)
+    backupHooks.namecall = oldNamecall
+    local originalKick = game.Players.LocalPlayer.Kick
+    game.Players.LocalPlayer.Kick = function(self, ...)
+        return nil
+    end
+    backupHooks.kick = originalKick
+end
+local function SetupNetworkCamouflage()
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    for i = 1, 3 do
+        local fakeRemote = Instance.new("RemoteEvent")
+        fakeRemote.Name = "ClientSignal_" .. math.random(1000,9999) .. "_" .. i
+        fakeRemote.Parent = ReplicatedStorage
+        table.insert(fakeRemotes, fakeRemote)
+    end
+    local connection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not MasterEnabled then return end
+        for _, remote in pairs(fakeRemotes) do
+            pcall(function()
+                remote:FireServer({
+                    Type = "PlayerUpdate",
+                    Position = game.Players.LocalPlayer.Character and 
+                              game.Players.LocalPlayer.Character.HumanoidRootPart and
+                              game.Players.LocalPlayer.Character.HumanoidRootPart.Position or Vector3.new(),
+                    Health = 100,
+                    Timestamp = os.time(),
+                    IsLegit = true
+                })
+            end)
+        end
+    end)
+    table.insert(activeConnections, connection)
+end
+local function SetupCharacterProtection()
+    local LocalPlayer = game.Players.LocalPlayer
+    local charRemoving = LocalPlayer.CharacterRemoving:Connect(function()
+        task.wait(0.1)
+        LocalPlayer:LoadCharacter()
+    end)
+    table.insert(activeConnections, charRemoving)
+    local charAdded = LocalPlayer.CharacterAdded:Connect(function(char)
+        task.wait(0.5)
+        char:SetAttribute("AntiKill_Protected", true)
+        local protectionScript = Instance.new("Script", char)
+        protectionScript.Name = "AntiKill_" .. math.random(1000,9999)
+        protectionScript.Enabled = true
+        protectionScript.Source = [[
+            local char = script.Parent
+            while task.wait(1) do
+                if not char:GetAttribute("AntiKill_Protected") then
+                    char:SetAttribute("AntiKill_Protected", true)
+                end
+            end
+        ]]
+    end)
+    table.insert(activeConnections, charAdded)
+    local microMove = game:GetService("RunService").Stepped:Connect(function()
+        if not MasterEnabled then return end
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local root = char.HumanoidRootPart
+            local offset = Vector3.new(
+                math.random(-3,3)/200,
+                math.random(-1,1)/200,
+                math.random(-3,3)/200
+            )
+            root.CFrame = root.CFrame + offset
+        end
+    end)
+    table.insert(activeConnections, microMove)
+end
+local function SetupRemoteMonitoring()
+    local function hookRemote(remote)
+        if remote:IsA("RemoteEvent") then
+            local oldFire = remote.FireServer
+            remote.FireServer = function(self, ...)
+                local args = {...}
+                for _, arg in pairs(args) do
+                    if type(arg) == "string" and (arg:lower():find("kick") or arg:lower():find("ban")) then
+                        return nil
+                    end
+                end
+                return oldFire(self, ...)
+            end
+        elseif remote:IsA("RemoteFunction") then
+            local oldInvoke = remote.InvokeServer
+            remote.InvokeServer = function(self, ...)
+                local args = {...}
+                for _, arg in pairs(args) do
+                    if type(arg) == "string" and arg:lower():find("kick") then
+                        return {Success = false, Reason = "Blocked"}
+                    end
+                end
+                return oldInvoke(self, ...)
+            end
+        end
+    end
+    for _, remote in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        pcall(hookRemote, remote)
+    end
+    local connection = game:GetService("ReplicatedStorage").DescendantAdded:Connect(function(remote)
+        task.wait(0.5)
+        pcall(hookRemote, remote)
+    end)
+    table.insert(activeConnections, connection)
+end
+local function SetupTeleportProtection()
+    local teleportConnection = game.Players.LocalPlayer.OnTeleport:Connect(function(state)
+        if state == Enum.TeleportState.Started then
+            task.wait(0.1)
+            game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer)
+        end
+    end)
+    table.insert(activeConnections, teleportConnection)
+end
+local function Cleanup()
+    MasterEnabled = false
+    for _, conn in pairs(activeConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    activeConnections = {}
+    for _, remote in pairs(fakeRemotes) do
+        pcall(function() remote:Destroy() end)
+    end
+    fakeRemotes = {}
+    if backupHooks.namecall then
+        local mt = getrawmetatable(game)
+        setreadonly(mt, false)
+        mt.__namecall = backupHooks.namecall
+        setreadonly(mt, true)
+    end
+    if backupHooks.kick then
+        game.Players.LocalPlayer.Kick = backupHooks.kick
+    end
+end
+AntiKickTab:CreateToggle({
+    Name = "启动防踢",
+    CurrentValue = false,
+    Callback = function(Value)
+        if Value then
+            MasterEnabled = true
+            SetupHookProtection()
+            SetupNetworkCamouflage()
+            SetupCharacterProtection()
+            SetupRemoteMonitoring()
+            SetupTeleportProtection()
+        else
+            Cleanup()
+        end
+    end
+})
+AntiKickTab:CreateLabel("建议飞行速度0.3")
+local OtherTab = Window:CreateTab("其他功能", 4483362458)
+OtherTab:CreateButton({
+    Name = "静默自瞄",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/HoaTan1123/1/refs/heads/main/SilentAimSettings"))()
+    end
+})
+OtherTab:CreateButton({
+    Name = "IY指令 (中文版)",
+    Callback = function()
+        loadstring(game:HttpGet(utf8.char((function() 
+            return table.unpack({
+                104,116,116,112,115,58,47,47,114,97,119,46,103,105,116,104,117,98,117,
+                115,101,114,99,111,110,116,101,110,116,46,99,111,109,47,87,97,110,103,
+                122,104,101,104,97,111,104,47,102,108,121,45,97,119,97,121,47,109,97,
+                105,110,47,37,69,54,37,56,67,37,56,55,37,69,52,37,66,66,37,56,65,37,
+                69,52,37,66,56,37,65,68,37,69,54,37,57,54,37,56,55,46,116,120,116
+            })
+        end)())))()
+    end
+})
+OtherTab:CreateButton({
+    Name = "飞行脚本 V2.0",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/HoaTan1123/1/refs/heads/main/fly%20V2.0"))()
+    end
+})
+local AimTab = Window:CreateTab("自瞄系统", 4483362458)
+local AimEnabled = false
+local PredictAim = true
+local LowHealthPriority = false
+local AimFOV = 147
+local AimTargetPart = "Head"
+local TeamCheck = true
+local AliveCheck = true
+local PredictDistance = 1.7
+local WallCheck = true
+local ShowTargetUI = true
+local MaxDistance = 1000
+local CrosshairXOffset = 0
+local CrosshairYOffset = 0
+local AimCircle = Drawing.new("Circle")
+AimCircle.Visible = false
+AimCircle.Thickness = 2
+AimCircle.Color = Color3.fromRGB(255, 0, 0)
+AimCircle.Filled = false
+AimCircle.Radius = AimFOV
+local CurrentTarget = nil
+local TargetHighlights = {}
+local function IsLocalPlayerAlive()
+    if not LocalPlayer.Character then return false end
+    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+local function IsPlayerAlive(player)
+    if not player or not player.Character then return false end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+local function CalculatePredictedPosition(targetPlayer, deltaTime)
+    if not PredictAim or not targetPlayer or not targetPlayer.Character then
+        local part = targetPlayer.Character:FindFirstChild(AimTargetPart)
+        return part and part.Position or nil
+    end
+    local part = targetPlayer.Character:FindFirstChild(AimTargetPart)
+    if not part then return nil end
+    local velocity = part.Velocity
+    return part.Position + velocity * deltaTime * PredictDistance
+end
+local function IsVisible(targetPlayer)
+    if not WallCheck then return true end
+    if not targetPlayer or not targetPlayer.Character then return false end
+    local targetPart = targetPlayer.Character:FindFirstChild(AimTargetPart)
+    if not targetPart then return false end
+    local origin = Camera.CFrame.Position
+    local target = targetPart.Position
+    local direction = (target - origin).Unit
+    local distance = (target - origin).Magnitude
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPlayer.Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.IgnoreWater = true
+    local rayResult = Workspace:Raycast(origin, direction * distance, rayParams)
+    if rayResult then
+        local hitPart = rayResult.Instance
+        if hitPart then
+            local hitCharacter = hitPart:FindFirstAncestorOfClass("Model")
+            return hitCharacter and hitCharacter == targetPlayer.Character
+        end
+    end
+    return true
+end
+local function FindBestTarget()
+    if not IsLocalPlayerAlive() then return nil end
+    local bestTarget = nil
+    local closestDistance = math.huge
+    local lowestHealth = math.huge
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2 + CrosshairXOffset, Camera.ViewportSize.Y / 2 + CrosshairYOffset)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        if TeamCheck and player.Team == LocalPlayer.Team then continue end
+        if AliveCheck and not IsPlayerAlive(player) then continue end
+        if not IsVisible(player) then continue end
+        local character = player.Character
+        if character and character:FindFirstChild(AimTargetPart) then
+            local targetPart = character[AimTargetPart]
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            if onScreen then
+                local distance3D = (targetPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if distance3D <= MaxDistance then
+                    local screenPos2D = Vector2.new(screenPos.X, screenPos.Y)
+                    local distanceToCenter = (screenPos2D - screenCenter).Magnitude
+                    if distanceToCenter <= AimFOV then
+                        if LowHealthPriority then
+                            local humanoid = character:FindFirstChildOfClass("Humanoid")
+                            if humanoid and humanoid.Health < lowestHealth then
+                                lowestHealth = humanoid.Health
+                                bestTarget = player
+                            end
+                        elseif distanceToCenter < closestDistance then
+                            closestDistance = distanceToCenter
+                            bestTarget = player
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return bestTarget
+end
+local function UpdateTargetHighlight()
+    for player, highlight in pairs(TargetHighlights) do
+        if player ~= CurrentTarget or not AimEnabled or not ShowTargetUI then
+            highlight:Destroy()
+            TargetHighlights[player] = nil
+        end
+    end
+    if AimEnabled and CurrentTarget and ShowTargetUI and CurrentTarget.Character then
+        if not TargetHighlights[CurrentTarget] then
+            local highlight = Instance.new("Highlight")
+            highlight.Adornee = CurrentTarget.Character
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.FillColor = Color3.fromRGB(255, 0, 0)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Parent = CurrentTarget.Character
+            TargetHighlights[CurrentTarget] = highlight
+        end
+    end
+end
+local TargetUIScreenGui = Instance.new("ScreenGui")
+TargetUIScreenGui.Name = "AimingPlayerList"
+TargetUIScreenGui.Parent = game:GetService("CoreGui")
+local TargetUIFrame = Instance.new("Frame")
+TargetUIFrame.Size = UDim2.new(0, 200, 0, 100)
+TargetUIFrame.Position = UDim2.new(1, -210, 0, 10)
+TargetUIFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+TargetUIFrame.BackgroundTransparency = 0.5
+TargetUIFrame.BorderSizePixel = 0
+TargetUIFrame.Visible = ShowTargetUI
+TargetUIFrame.Parent = TargetUIScreenGui
+local TargetUICorner = Instance.new("UICorner")
+TargetUICorner.CornerRadius = UDim.new(0, 5)
+TargetUICorner.Parent = TargetUIFrame
+local TargetUITitle = Instance.new("TextLabel")
+TargetUITitle.Size = UDim2.new(1, 0, 0, 20)
+TargetUITitle.Position = UDim2.new(0, 0, 0, 0)
+TargetUITitle.BackgroundTransparency = 1
+TargetUITitle.Text = "当前自瞄玩家"
+TargetUITitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+TargetUITitle.TextScaled = true
+TargetUITitle.Parent = TargetUIFrame
+local TargetUIName = Instance.new("TextLabel")
+TargetUIName.Size = UDim2.new(1, -10, 1, -25)
+TargetUIName.Position = UDim2.new(0, 5, 0, 25)
+TargetUIName.BackgroundTransparency = 1
+TargetUIName.Text = "无"
+TargetUIName.TextColor3 = Color3.fromRGB(255, 255, 255)
+TargetUIName.TextWrapped = true
+TargetUIName.TextScaled = true
+TargetUIName.Parent = TargetUIFrame
+local function UpdateTargetUI()
+    if ShowTargetUI then
+        TargetUIFrame.Visible = true
+        if AimEnabled and CurrentTarget and IsLocalPlayerAlive() then
+            TargetUIName.Text = CurrentTarget.Name
+        else
+            TargetUIName.Text = "无"
+        end
+    else
+        TargetUIFrame.Visible = false
+    end
+end
+local AimConnection = nil
+local function StartAim()
+    if not AimConnection then
+        AimConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if not AimEnabled or not IsLocalPlayerAlive() then
+                CurrentTarget = nil
+                UpdateTargetHighlight()
+                UpdateTargetUI()
+                return
+            end
+            CurrentTarget = FindBestTarget()
+            UpdateTargetHighlight()
+            UpdateTargetUI()
+            if CurrentTarget and CurrentTarget.Character then
+                local targetPart = CurrentTarget.Character:FindFirstChild(AimTargetPart)
+                if targetPart then
+                    local targetPosition = CalculatePredictedPosition(CurrentTarget, deltaTime)
+                    if targetPosition then
+                        local direction = (targetPosition - Camera.CFrame.Position).Unit
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + direction)
+                    end
+                end
+            end
+            AimCircle.Position = Vector2.new(Camera.ViewportSize.X / 2 + CrosshairXOffset, Camera.ViewportSize.Y / 2 + CrosshairYOffset)
+        end)
+    end
+    AimCircle.Visible = true
+    AimCircle.Radius = AimFOV
+    UpdateTargetUI()
+end
+local function StopAim()
+    if AimConnection then
+        AimConnection:Disconnect()
+        AimConnection = nil
+    end
+    CurrentTarget = nil
+    UpdateTargetHighlight()
+    UpdateTargetUI()
+    AimCircle.Visible = false
+end
+local function UpdateCrosshairPosition()
+    AimCircle.Position = Vector2.new(Camera.ViewportSize.X / 2 + CrosshairXOffset, Camera.ViewportSize.Y / 2 + CrosshairYOffset)
+end
+AimTab:CreateToggle({
+    Name = "自瞄开关",
+    CurrentValue = false,
+    Callback = function(Value)
+        AimEnabled = Value
+        if Value then
+            StartAim()
+        else
+            StopAim()
+        end
+    end
+})
+AimTab:CreateToggle({
+    Name = "预判自瞄",
+    CurrentValue = true,
+    Callback = function(Value)
+        PredictAim = Value
+    end
+})
+AimTab:CreateToggle({
+    Name = "优先低血量",
+    CurrentValue = false,
+    Callback = function(Value)
+        LowHealthPriority = Value
+    end
+})
+AimTab:CreateToggle({
+    Name = "显示目标UI",
+    CurrentValue = false,
+    Callback = function(Value)
+        ShowTargetUI = Value
+        UpdateTargetUI()
+    end
+})
+AimTab:CreateSlider({
+    Name = "FOV大小",
+    Range = {1, 600},
+    Increment = 1,
+    Suffix = "像素",
+    CurrentValue = AimFOV,
+    Callback = function(Value)
+        AimFOV = Value
+        AimCircle.Radius = Value
+    end
+})
+AimTab:CreateSlider({
+    Name = "FOV圆圈厚度",
+    Range = {1, 10},
+    Increment = 1,
+    Suffix = "像素",
+    CurrentValue = AimCircle.Thickness,
+    Callback = function(Value)
+        AimCircle.Thickness = Value
+    end
+})
+AimTab:CreateSlider({
+    Name = "最大锁定距离",
+    Description = "0-3000，超过此距离的目标不会被锁定",
+    Range = {0, 3000},
+    Increment = 50,
+    Suffix = "单位",
+    CurrentValue = MaxDistance,
+    Callback = function(Value)
+        MaxDistance = Value
+    end
+})
+AimTab:CreateSlider({
+    Name = "准星X轴偏移",
+    Description = "调整准星水平位置（应对服务器偏移）",
+    Range = {-100, 100},
+    Increment = 1,
+    Suffix = "像素",
+    CurrentValue = CrosshairXOffset,
+    Callback = function(Value)
+        CrosshairXOffset = Value
+        UpdateCrosshairPosition()
+    end
+})
+AimTab:CreateSlider({
+    Name = "准星Y轴偏移",
+    Description = "调整准星垂直位置（应对服务器偏移）",
+    Range = {-100, 100},
+    Increment = 1,
+    Suffix = "像素",
+    CurrentValue = CrosshairYOffset,
+    Callback = function(Value)
+        CrosshairYOffset = Value
+        UpdateCrosshairPosition()
+    end
+})
+local BodyParts = {
+    ["头"] = "Head",
+    ["胸"] = "UpperTorso",
+    ["左手"] = "LeftHand",
+    ["右手"] = "RightHand",
+    ["左腿"] = "LeftFoot",
+    ["右腿"] = "RightFoot",
+}
+AimTab:CreateDropdown({
+    Name = "自瞄身体部位",
+    Options = {"头", "胸", "左手", "右手", "左腿", "右腿"},
+    CurrentOption = "头",
+    Callback = function(Value)
+        AimTargetPart = BodyParts[Value]
+    end
+})
+local FOVColors = {
+    ["红色"] = Color3.fromRGB(255, 0, 0),
+    ["黄色"] = Color3.fromRGB(255, 255, 0),
+    ["绿色"] = Color3.fromRGB(0, 255, 0),
+    ["蓝色"] = Color3.fromRGB(0, 0, 255),
+    ["紫色"] = Color3.fromRGB(128, 0, 128),
+    ["橙色"] = Color3.fromRGB(255, 165, 0),
+    ["黑色"] = Color3.fromRGB(0, 0, 0),
+}
+AimTab:CreateDropdown({
+    Name = "FOV圆圈颜色",
+    Options = {"红色", "黄色", "绿色", "蓝色", "紫色", "橙色", "黑色"},
+    CurrentOption = "红色",
+    Callback = function(Value)
+        AimCircle.Color = FOVColors[Value]
+    end
+})
+AimTab:CreateToggle({
+    Name = "队伍检测",
+    CurrentValue = true,
+    Callback = function(Value)
+        TeamCheck = Value
+    end
+})
+AimTab:CreateToggle({
+    Name = "活体检测",
+    CurrentValue = true,
+    Callback = function(Value)
+        AliveCheck = Value
+    end
+})
+AimTab:CreateSlider({
+    Name = "预判距离",
+    Range = {1, 30},
+    Increment = 1,
+    Suffix = "倍率",
+    CurrentValue = 17,
+    Callback = function(Value)
+        PredictDistance = Value / 10
+    end
+})
+AimTab:CreateToggle({
+    Name = "墙壁检测",
+    CurrentValue = true,
+    Callback = function(Value)
+        WallCheck = Value
+    end
+})
+RunService.RenderStepped:Connect(function()
+    if AimEnabled then
+        UpdateCrosshairPosition()
+    end
+end)
+Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+    UpdateCrosshairPosition()
+end)
+AimTab:CreateButton({
+    Name = "重置偏移",
+    Callback = function()
+        CrosshairXOffset = 0
+        CrosshairYOffset = 0
+        UpdateCrosshairPosition()
+    end
+})
