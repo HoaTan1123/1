@@ -1,4 +1,5 @@
-game.ProximityPromptService.PromptButtonHoldBegan:Connect(function(A0_849)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/66YEUIUI.txt"))():new("叶脚本V6   " .. identifyexecutor()):Tab("通用", "6035145364"):section("实用功能", true):Button("快速互动", function()
+  game.ProximityPromptService.PromptButtonHoldBegan:Connect(function(A0_849)
     local L1_850
     A0_849.HoldDuration = 0
   end
