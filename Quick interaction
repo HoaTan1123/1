@@ -1,0 +1,7 @@
+game.ProximityPromptService.PromptButtonHoldBegan:Connect(function(A0_849)
+    local L1_850
+    A0_849.HoldDuration = 0
+  end
+  )
+end
+)
