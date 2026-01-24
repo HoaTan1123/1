@@ -34,7 +34,7 @@ local function createDraggableUI()
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "Main"
     mainFrame.Size = UDim2.new(0, 176, 0, 132)
-    mainFrame.Position = UDim2.new(0, 10, 0.0005, 0) -- 尝试0.0005的比例
+    mainFrame.Position = UDim2.new(0, 10, 0.0005, 0)
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     mainFrame.BackgroundTransparency = 0.8
     mainFrame.BorderSizePixel = 0
