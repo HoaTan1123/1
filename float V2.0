@@ -34,7 +34,7 @@ local function createDraggableUI()
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "Main"
     mainFrame.Size = UDim2.new(0, 176, 0, 132)
-    mainFrame.Position = UDim2.new(0, 10, 0.05, 0)
+    mainFrame.Position = UDim2.new(0, 10, 0.0005, 0) -- 尝试0.0005的比例
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     mainFrame.BackgroundTransparency = 0.8
     mainFrame.BorderSizePixel = 0
@@ -138,24 +138,6 @@ local function createDraggableUI()
     titleCorner.CornerRadius = UDim.new(0, 5)
     titleCorner.Parent = titleBar
     
-    minimizeButton = Instance.new("TextButton")
-    minimizeButton.Name = "MinimizeButton"
-    minimizeButton.Size = UDim2.new(0, 22, 0, 22)
-    minimizeButton.Position = UDim2.new(1, -80, 0, 2)
-    minimizeButton.AnchorPoint = Vector2.new(1, 0)
-    minimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    minimizeButton.BackgroundTransparency = 0.7
-    minimizeButton.BorderSizePixel = 0
-    minimizeButton.Text = "-"
-    minimizeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    minimizeButton.TextSize = 18
-    minimizeButton.Font = Enum.Font.GothamBold
-    minimizeButton.Parent = titleBar
-    
-    local minimizeCorner = Instance.new("UICorner")
-    minimizeCorner.CornerRadius = UDim.new(0, 3)
-    minimizeCorner.Parent = minimizeButton
-    
     closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Size = UDim2.new(0, 22, 0, 22)
@@ -173,6 +155,24 @@ local function createDraggableUI()
     local closeCorner = Instance.new("UICorner")
     closeCorner.CornerRadius = UDim.new(0, 3)
     closeCorner.Parent = closeButton
+    
+    minimizeButton = Instance.new("TextButton")
+    minimizeButton.Name = "MinimizeButton"
+    minimizeButton.Size = UDim2.new(0, 22, 0, 22)
+    minimizeButton.Position = UDim2.new(1, -55, 0, 2)
+    minimizeButton.AnchorPoint = Vector2.new(1, 0)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    minimizeButton.BackgroundTransparency = 0.7
+    minimizeButton.BorderSizePixel = 0
+    minimizeButton.Text = "-"
+    minimizeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    minimizeButton.TextSize = 18
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.Parent = titleBar
+    
+    local minimizeCorner = Instance.new("UICorner")
+    minimizeCorner.CornerRadius = UDim.new(0, 3)
+    minimizeCorner.Parent = minimizeButton
     
     local parallelButton = Instance.new("TextButton")
     parallelButton.Name = "Parallel"
@@ -225,17 +225,6 @@ local function createDraggableUI()
     downCorner.CornerRadius = UDim.new(0, 3)
     downCorner.Parent = downButton
     
-    local status = Instance.new("TextLabel")
-    status.Name = "Status"
-    status.Size = UDim2.new(1, 0, 0, 18)
-    status.Position = UDim2.new(0, 0, 0, 200)
-    status.BackgroundTransparency = 1
-    status.Text = "就绪"
-    status.TextColor3 = Color3.fromRGB(150, 150, 150)
-    status.TextSize = 11
-    status.Font = Enum.Font.Gotham
-    status.Parent = gui
-    
     local function toggleMinimize()
         isMinimized = not isMinimized
         
@@ -262,7 +251,6 @@ local function createDraggableUI()
     
     closeButton.MouseButton1Click:Connect(function()
         mainFrame.Visible = false
-        status.Text = " "
     end)
     
     local function ensurePlayerOnBlock()
@@ -356,7 +344,6 @@ local function createDraggableUI()
             end
             followBlock:Destroy()
             followBlock = nil
-            status.Text = " "
             return
         end
         
@@ -402,8 +389,6 @@ local function createDraggableUI()
                 rootPart.Position.Z
             )
         end)
-        
-        status.Text = " "
     end)
     
     userInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -411,11 +396,6 @@ local function createDraggableUI()
         
         if input.KeyCode == Enum.KeyCode.Insert then
             mainFrame.Visible = not mainFrame.Visible
-            if mainFrame.Visible then
-                status.Text = " "
-            else
-                status.Text = " "
-            end
         end
     end)
     
