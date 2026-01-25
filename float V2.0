@@ -1,20 +1,20 @@
-local player = game:GetService("Players").LocalPlayer
-local userInputService = game:GetService("UserInputService")
-local runService = game:GetService("RunService")
-local coreGui = game:GetService("CoreGui")
+local cloneref = cloneref or function(instance)
+    return instance
+end
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local Players = cloneref(game:GetService("Players"))
+local RunService = cloneref(game:GetService("RunService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
 
+local player = Players.LocalPlayer
 local blocks = {}
 local followBlock = nil
 local followConnection = nil
-local isDragging = false
-local dragStartPos = nil
-local uiStartPos = nil
 local gui = nil
 local mainFrame = nil
 local isUpPressed = false
 local isDownPressed = false
 local currentHeight = 0
-local isPlayerOnBlock = false
 local playerConnection = nil
 
 local isMinimized = false
@@ -24,12 +24,72 @@ local minimizeButton = nil
 local closeButton = nil
 local contentContainer = nil
 
+local function IsClickInput(Input)
+    return Input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           Input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function IsHoverInput(Input)
+    return Input.UserInputType == Enum.UserInputType.MouseMovement or 
+           Input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function MakeDraggable(UI, DragFrame)
+    local StartPos
+    local FramePos
+    local Dragging = false
+    local Changed
+    
+    DragFrame.InputBegan:Connect(function(Input)
+        if not IsClickInput(Input) then
+            return
+        end
+
+        StartPos = Input.Position
+        FramePos = UI.Position
+        Dragging = true
+
+        Changed = Input.Changed:Connect(function()
+            if Input.UserInputState ~= Enum.UserInputState.End then
+                return
+            end
+
+            Dragging = false
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+        end)
+    end)
+    
+    UserInputService.InputChanged:Connect(function(Input)
+        if not UI.Visible or not UI.Parent or not UI.Parent.Parent then
+            Dragging = false
+            if Changed and Changed.Connected then
+                Changed:Disconnect()
+                Changed = nil
+            end
+            return
+        end
+
+        if Dragging and IsHoverInput(Input) then
+            local Delta = Input.Position - StartPos
+            UI.Position = UDim2.new(
+                FramePos.X.Scale, 
+                FramePos.X.Offset + Delta.X, 
+                FramePos.Y.Scale, 
+                FramePos.Y.Offset + Delta.Y
+            )
+        end
+    end)
+end
+
 local function createDraggableUI()
     gui = Instance.new("ScreenGui")
-    gui.Name = "GameMenu"
+    gui.Name = "floatMenu"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Parent = coreGui
+    gui.Parent = CoreGui
     
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "Main"
@@ -56,70 +116,6 @@ local function createDraggableUI()
     contentContainer.BackgroundTransparency = 1
     contentContainer.BorderSizePixel = 0
     contentContainer.Parent = mainFrame
-    
-    local function onInputBegan(input, gameProcessed)
-        if gameProcessed then return end
-        
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-            local framePos = Vector2.new(
-                mainFrame.AbsolutePosition.X,
-                mainFrame.AbsolutePosition.Y
-            )
-            local frameSize = Vector2.new(
-                mainFrame.AbsoluteSize.X,
-                mainFrame.AbsoluteSize.Y
-            )
-            
-            if mousePos.X >= framePos.X and mousePos.X <= framePos.X + frameSize.X and
-               mousePos.Y >= framePos.Y and mousePos.Y <= framePos.Y + frameSize.Y then
-               
-                isDragging = true
-                dragStartPos = mousePos
-                uiStartPos = UDim2.new(
-                    mainFrame.Position.X.Scale,
-                    mainFrame.Position.X.Offset,
-                    mainFrame.Position.Y.Scale,
-                    mainFrame.Position.Y.Offset
-                )
-                
-                local dragConnection
-                dragConnection = runService.Heartbeat:Connect(function()
-                    if not isDragging or not mainFrame or not mainFrame.Parent then
-                        if dragConnection then
-                            dragConnection:Disconnect()
-                        end
-                        return
-                    end
-                    
-                    local currentMousePos = userInputService:GetMouseLocation()
-                    local delta = currentMousePos - dragStartPos
-                    
-                    mainFrame.Position = UDim2.new(
-                        uiStartPos.X.Scale,
-                        uiStartPos.X.Offset + delta.X,
-                        uiStartPos.Y.Scale,
-                        uiStartPos.Y.Offset + delta.Y
-                    )
-                end)
-                
-                local endConnection
-                endConnection = userInputService.InputEnded:Connect(function(endInput)
-                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
-                        isDragging = false
-                        if dragConnection then
-                            dragConnection:Disconnect()
-                        end
-                        if endConnection then
-                            endConnection:Disconnect()
-                        end
-                    end
-                end)
-            end
-        end
-    end
-    
-    userInputService.InputBegan:Connect(onInputBegan)
     
     local titleBar = Instance.new("TextLabel")
     titleBar.Name = "TitleBar"
@@ -225,6 +221,8 @@ local function createDraggableUI()
     downCorner.CornerRadius = UDim.new(0, 3)
     downCorner.Parent = downButton
     
+    MakeDraggable(mainFrame, titleBar)
+    
     local function toggleMinimize()
         isMinimized = not isMinimized
         
@@ -260,7 +258,7 @@ local function createDraggableUI()
             playerConnection:Disconnect()
         end
         
-        playerConnection = runService.Heartbeat:Connect(function()
+        playerConnection = RunService.Heartbeat:Connect(function()
             if not followBlock or not followBlock.Parent then
                 if playerConnection then
                     playerConnection:Disconnect()
@@ -285,7 +283,7 @@ local function createDraggableUI()
     upButton.MouseButton1Down:Connect(function()
         isUpPressed = true
         local connection
-        connection = runService.Heartbeat:Connect(function()
+        connection = RunService.Heartbeat:Connect(function()
             if not isUpPressed or not followBlock then
                 if connection then
                     connection:Disconnect()
@@ -307,7 +305,7 @@ local function createDraggableUI()
     downButton.MouseButton1Down:Connect(function()
         isDownPressed = true
         local connection
-        connection = runService.Heartbeat:Connect(function()
+        connection = RunService.Heartbeat:Connect(function()
             if not isDownPressed or not followBlock then
                 if connection then
                     connection:Disconnect()
@@ -359,11 +357,9 @@ local function createDraggableUI()
         followBlock.Material = Enum.Material.SmoothPlastic
         followBlock.Parent = workspace
         
-        table.insert(blocks, followBlock)
-        
         ensurePlayerOnBlock()
         
-        followConnection = runService.Heartbeat:Connect(function()
+        followConnection = RunService.Heartbeat:Connect(function()
             if not character or not character.Parent then
                 if followConnection then
                     followConnection:Disconnect()
@@ -391,7 +387,7 @@ local function createDraggableUI()
         end)
     end)
     
-    userInputService.InputBegan:Connect(function(input, gameProcessed)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
         
         if input.KeyCode == Enum.KeyCode.Insert then
