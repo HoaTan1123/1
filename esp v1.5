@@ -757,6 +757,12 @@ OtherTab:CreateButton({
         end)
     end
 })
+OtherTab:CreateButton({
+    Name = "锁定视角",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/MiniNoobie/ShiftLockx/main/Shiftlock-MiniNoobie",true))()
+    end
+})
 
 local AimTab = Window:CreateTab("自瞄系统", 4483362458)
 local AimEnabled = false
