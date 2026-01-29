@@ -763,6 +763,18 @@ OtherTab:CreateButton({
         loadstring(game:HttpGet("https://raw.githubusercontent.com/MiniNoobie/ShiftLockx/main/Shiftlock-MiniNoobie",true))()
     end
 })
+OtherTab:CreateButton({
+    Name = "dex",
+    Callback = function()
+        loadstring(game:HttpGet("https://gitee.com/cmbhbh/cmbh/raw/master/Bex.lua"))()
+    end
+})
+OtherTab:CreateButton({
+    Name = "LC",
+    Callback = function()
+        loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))()
+    end
+})
 
 local AimTab = Window:CreateTab("自瞄系统", 4483362458)
 local AimEnabled = false
