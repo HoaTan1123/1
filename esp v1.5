@@ -1,4 +1,52 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local function createFPSDisplay()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "FPSGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    local fpsLabel = Instance.new("TextLabel")
+    fpsLabel.Name = "FpsXS"
+    fpsLabel.Size = UDim2.new(0, 100, 0, 50)
+    fpsLabel.Position = UDim2.new(0, 10, 0, 10)
+    fpsLabel.BackgroundTransparency = 1
+    fpsLabel.Font = Enum.Font.SourceSansBold
+    fpsLabel.Text = "FPS: 0"
+    fpsLabel.TextSize = 20
+    fpsLabel.TextColor3 = Color3.new(1, 1, 1)
+    fpsLabel.Parent = screenGui
+    
+    local frameCount = 0
+    local lastTime = tick()
+    
+    game:GetService("RunService").Heartbeat:Connect(function()
+        frameCount = frameCount + 1
+        
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            local fps = math.floor(frameCount / (currentTime - lastTime))
+            fpsLabel.Text = "FPS: " .. fps
+            
+            if fps < 30 then
+                fpsLabel.TextColor3 = Color3.new(1, 0, 0)
+            elseif fps < 60 then
+                fpsLabel.TextColor3 = Color3.new(1, 1, 0)
+            else
+                fpsLabel.TextColor3 = Color3.new(0, 1, 0)
+            end
+            
+            frameCount = 0
+            lastTime = currentTime
+        end
+    end)
+    
+    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    return screenGui
+end
+
+createFPSDisplay()
+
 local Window = Rayfield:CreateWindow({
    Name = "ESP脚本1.5",
    LoadingTitle = "脚本加载中",
@@ -788,7 +836,18 @@ OtherTab:CreateButton({
         loadstring(game:HttpGet("https://raw.githubusercontent.com/yuanshenqdon/Script/refs/heads/main/%E9%A3%9E%E8%A1%8CV1"))()
     end
 })
-
+OtherTab:CreateButton({
+    Name = "翻译",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/KENNY自动汉化.txt"))()
+    end
+})
+OtherTab:CreateButton({
+    Name = "光影",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/jHBfJYmS"))()
+    end
+})
 local AimTab = Window:CreateTab("自瞄系统", 4483362458)
 local AimEnabled = false
 local PredictAim = true
