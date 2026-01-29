@@ -775,6 +775,19 @@ OtherTab:CreateButton({
         loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))()
     end
 })
+OtherTab:CreateButton({
+    Name = "抓包工具",
+    Callback = function()
+        --网络安全工具
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ShenJiaoBen/Partial-Server-Ribbon/refs/heads/main/NetworkSecurityTool.txt", true))()
+    end
+})
+OtherTab:CreateButton({
+    Name = "fly V1",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/yuanshenqdon/Script/refs/heads/main/%E9%A3%9E%E8%A1%8CV1"))()
+    end
+})
 
 local AimTab = Window:CreateTab("自瞄系统", 4483362458)
 local AimEnabled = false
