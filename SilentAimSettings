@@ -459,22 +459,11 @@ UISettingsBox:AddToggle("KeybindMenuOpen", {
     end,
 })
 
--- 在UI设置区添加快捷键菜单
-local UISettingsBox = Tabs["UI Settings"]:AddLeftGroupbox("快捷键设置")
-
-UISettingsBox:AddToggle("KeybindMenuOpen", {
-    Default = Library.KeybindFrame.Visible,
-    Text = "显示快捷键菜单",
-    Callback = function(value)
-        Library.KeybindFrame.Visible = value
-    end,
-})
-
-UISettingsBox:AddLabel("自瞄开关"):AddKeyPicker("AimKeyPicker", {
+UISettingsBox:AddLabel("启用"):AddKeyPicker("AimKeyPicker", {
     Default = "Q",
     SyncToggleState = false,
     Mode = "Toggle",
-    Text = "开关自瞄功能",
+    Text = "启用功能",
     NoUI = false,
     Callback = function(Value)
         SilentAimSettings.Enabled = Value
@@ -497,6 +486,15 @@ UISettingsBox:AddLabel("穿墙开关"):AddKeyPicker("WallbangKeyPicker", {
             Toggles.WallbangToggle:SetValue(Value)
         end
     end
+})
+
+UISettingsBox:AddButton("DestroyUI", {
+    Text = "销毁所有界面",
+    Func = function()
+        Library:Unload()
+    end,
+    Risky = true,
+    Tooltip = "永久移除UI界面"
 })
 
 local MainSettingsBox = Tabs.Main:AddLeftGroupbox("主设置")
