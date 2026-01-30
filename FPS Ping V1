@@ -1,0 +1,122 @@
+local function createPerformanceDisplay()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "PerfGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    local fpsLabel = Instance.new("TextLabel")
+    fpsLabel.Name = "FpsXS"
+    fpsLabel.Size = UDim2.new(0, 100, 0, 30)
+    fpsLabel.Position = UDim2.new(0, 10, 0, 10)
+    fpsLabel.BackgroundTransparency = 1
+    fpsLabel.Font = Enum.Font.SourceSansBold
+    fpsLabel.Text = "FPS: 0"
+    fpsLabel.TextSize = 18
+    fpsLabel.TextColor3 = Color3.new(1, 1, 1)
+    fpsLabel.Parent = screenGui
+    
+    local pingLabel = Instance.new("TextLabel")
+    pingLabel.Name = "PingXS"
+    pingLabel.Size = UDim2.new(0, 120, 0, 30)
+    pingLabel.Position = UDim2.new(0, 10, 0, 45)
+    pingLabel.BackgroundTransparency = 1
+    pingLabel.Font = Enum.Font.SourceSansBold
+    pingLabel.Text = "PING: 0ms"
+    pingLabel.TextSize = 18
+    pingLabel.TextColor3 = Color3.new(1, 1, 1)
+    pingLabel.Parent = screenGui
+    
+    local frameCount = 0
+    local lastFPSTime = tick()
+    
+    local function getPing()
+        local stats = game:GetService("Stats")
+        local ping = 0
+        
+        local networkPing = stats:FindFirstChild("NetworkPing")
+        if networkPing then
+            ping = math.floor(networkPing:GetValue() * 1000)
+            return ping
+        end
+        
+        local perfStats = stats:FindFirstChild("PerformanceStats")
+        if perfStats then
+            local pingStat = perfStats:FindFirstChild("Ping")
+            if pingStat then
+                ping = math.floor(pingStat:GetValue())
+                return ping
+            end
+        end
+        
+        local network = stats.Network
+        if network then
+            local success, result = pcall(function()
+                return network.ServerStatsItem["Data Ping"]
+            end)
+            
+            if success and result then
+                ping = math.floor(result:GetValue())
+            else
+                local incoming = network:FindFirstChild("IncomingReplication")
+                if incoming then
+                    ping = math.floor(incoming:GetValue() * 1000)
+                end
+                
+                local outgoing = network:FindFirstChild("OutgoingReplication")
+                if outgoing and outgoing:GetValue() > 0 then
+                    local currentPing = math.floor(outgoing:GetValue() * 1000)
+                    if currentPing > ping then
+                        ping = currentPing
+                    end
+                end
+            end
+        end
+        
+        return ping
+    end
+    
+    local lastPingUpdate = tick()
+    
+    game:GetService("RunService").Heartbeat:Connect(function()
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        
+        if currentTime - lastFPSTime >= 1 then
+            local fps = math.floor(frameCount / (currentTime - lastFPSTime))
+            fpsLabel.Text = "FPS: " .. fps
+            
+            if fps < 30 then
+                fpsLabel.TextColor3 = Color3.new(1, 0, 0)
+            elseif fps < 60 then
+                fpsLabel.TextColor3 = Color3.new(1, 1, 0)
+            else
+                fpsLabel.TextColor3 = Color3.new(0, 1, 0)
+            end
+            
+            frameCount = 0
+            lastFPSTime = currentTime
+        end
+        
+        if currentTime - lastPingUpdate >= 0.5 then
+            local ping = getPing()
+            pingLabel.Text = "PING: " .. ping .. "ms"
+            
+            if ping < 50 then
+                pingLabel.TextColor3 = Color3.new(0, 1, 0)
+            elseif ping < 100 then
+                pingLabel.TextColor3 = Color3.new(1, 1, 0)
+            elseif ping < 200 then
+                pingLabel.TextColor3 = Color3.new(1, 0.5, 0)
+            else
+                pingLabel.TextColor3 = Color3.new(1, 0, 0)
+            end
+            
+            lastPingUpdate = currentTime
+        end
+    end)
+    
+    screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+    return screenGui
+end
+
+createPerformanceDisplay()
