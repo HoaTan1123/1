@@ -134,6 +134,7 @@ local ESPTab = Window:CreateTab("透视系统", 4483362458)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local DebrisService = game:GetService("Debris")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local ESPEnabled = false
@@ -150,6 +151,7 @@ local FriendTeamColor = Color3.fromRGB(0, 100, 255)
 local FriendEnemyColor = Color3.fromRGB(255, 165, 0)
 local ShowHealthBarEnabled = true
 local ShowSelfHealth = false
+local ShowAttackTrail = false
 ESPTab:CreateToggle({Name = "透视总开关", CurrentValue = false, Callback = function(v) ESPEnabled = v end})
 ESPTab:CreateToggle({Name = "天线绘制", CurrentValue = true, Callback = function(v) TracerEnabled = v end})
 ESPTab:CreateToggle({Name = "骨骼绘制", CurrentValue = true, Callback = function(v) SkeletonEnabled = v end})
@@ -157,6 +159,7 @@ ESPTab:CreateToggle({Name = "内透Highlight", CurrentValue = true, Callback = f
 ESPTab:CreateToggle({Name = "2D方框", CurrentValue = true, Callback = function(v) Box2DEnabled = v end})
 ESPTab:CreateToggle({Name = "显示血量条", CurrentValue = true, Callback = function(v) ShowHealthBarEnabled = v end})
 ESPTab:CreateToggle({Name = "显示自身血量", CurrentValue = false, Callback = function(v) ShowSelfHealth = v end})
+ESPTab:CreateToggle({Name = "显示攻击轨迹", CurrentValue = false, Callback = function(v) ShowAttackTrail = v end})
 ESPTab:CreateToggle({Name = "透视亮队友", CurrentValue = false, Callback = function(v) ESPTeamCheck = v end})
 ESPTab:CreateToggle({Name = "墙后检测", CurrentValue = false, Callback = function(v) WallCheckEnabled = v end})
 ESPTab:CreateToggle({Name = "增强扫描", CurrentValue = false, Callback = function(v) EnhancedScanEnabled = v end})
@@ -213,7 +216,32 @@ SelfHealthText.Size = 20
 SelfHealthText.Center = true
 SelfHealthText.Outline = true
 SelfHealthText.Color = Color3.fromRGB(255, 255, 255)
-SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 50)
+SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 + 50)
+
+local function createTrail(origin, targetPos)
+	local part = Instance.new("Part") 
+	part.Size = Vector3.new(0.2, 0.2, 0.2)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Transparency = 1
+	part.CFrame = CFrame.new(origin)
+	part.Parent = workspace 
+
+	local att0 = Instance.new("Attachment", part)
+	local att1 = Instance.new("Attachment", workspace.Terrain)
+	att1.WorldPosition = targetPos
+
+	local beam = Instance.new("Beam", part)
+	beam.Attachment0 = att0 
+	beam.Attachment1 = att1 
+	beam.Color = ColorSequence.new(Color3.fromRGB(0, 170, 255))
+	beam.Width0 = 0.3
+	beam.Width1 = 0.3
+	beam.FaceCamera = true 
+	beam.LightEmission = 1
+
+	DebrisService:AddItem(part, 0.2)
+end
 
 local function IsFriend(plr)
     if not FriendESPEnabled then return false end
@@ -1116,7 +1144,7 @@ end
 
 Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
     if SelfHealthText then
-        SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 50)
+        SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 + 50)
     end
 end)
 
