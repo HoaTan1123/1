@@ -213,7 +213,7 @@ SelfHealthText.Size = 20
 SelfHealthText.Center = true
 SelfHealthText.Outline = true
 SelfHealthText.Color = Color3.fromRGB(255, 255, 255)
-SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 42)
+SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 50)
 
 local function IsFriend(plr)
     if not FriendESPEnabled then return false end
@@ -1116,7 +1116,7 @@ end
 
 Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
     if SelfHealthText then
-        SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 42)
+        SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 50)
     end
 end)
 
@@ -1784,4 +1784,3 @@ AimTab:CreateButton({
         UpdateCrosshairPosition()
     end
 })
-```
