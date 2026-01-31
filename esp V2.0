@@ -149,7 +149,7 @@ local FriendESPEnabled = true
 local FriendTeamColor = Color3.fromRGB(0, 100, 255)
 local FriendEnemyColor = Color3.fromRGB(255, 165, 0)
 local ShowHealthBarEnabled = true
-local ShowSelfHealth = false -- 新增：显示自身血量开关
+local ShowSelfHealth = false
 ESPTab:CreateToggle({Name = "透视总开关", CurrentValue = false, Callback = function(v) ESPEnabled = v end})
 ESPTab:CreateToggle({Name = "天线绘制", CurrentValue = true, Callback = function(v) TracerEnabled = v end})
 ESPTab:CreateToggle({Name = "骨骼绘制", CurrentValue = true, Callback = function(v) SkeletonEnabled = v end})
@@ -207,14 +207,13 @@ local PlayerDeathStatus = {}
 local WallCheckCache = {}
 local HealthCheckCache = {}
 
--- 新增：自身血量显示对象
 local SelfHealthText = Drawing.new("Text")
 SelfHealthText.Visible = false
 SelfHealthText.Size = 20
 SelfHealthText.Center = true
 SelfHealthText.Outline = true
 SelfHealthText.Color = Color3.fromRGB(255, 255, 255)
-SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, -42) -- X0,Y42
+SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 42)
 
 local function IsFriend(plr)
     if not FriendESPEnabled then return false end
@@ -476,10 +475,9 @@ local function UpdateBox2D(plr, char, playerColor, headPos, onScreen)
     
     if torsoPos then
         local torsoPos2D = Vector2.new(torsoPos.X, torsoPos.Y)
-        local height = math.abs(headPos2D.Y - torsoPos2D.Y) * 2.5 -- 从头部到腰部的高度 * 2.5倍
+        local height = math.abs(headPos2D.Y - torsoPos2D.Y) * 2.5
         local width = height * 0.6
         
-        -- 确保最小和最大高度限制
         local minHeight = 20
         local maxHeight = 150
         height = math.clamp(height, minHeight, maxHeight)
@@ -813,7 +811,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
     if lastFrameTime < frameDelay then return end
     lastFrameTime = 0
     
-    -- 更新自身血量显示
     SelfHealthText.Visible = ShowSelfHealth
     if ShowSelfHealth then
         local char = LocalPlayer.Character
@@ -826,7 +823,6 @@ RunService.RenderStepped:Connect(function(deltaTime)
                 
                 SelfHealthText.Text = string.format("HP: %d/%d", health, maxHealth)
                 
-                -- 根据血量百分比设置颜色
                 if healthPercent > 0.6 then
                     SelfHealthText.Color = Color3.fromRGB(0, 255, 0)
                 elseif healthPercent > 0.3 then
@@ -1118,10 +1114,9 @@ for _, plr in pairs(Players:GetPlayers()) do
     end
 end
 
--- 监听屏幕大小变化，更新自身血量显示位置
 Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
     if SelfHealthText then
-        SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, 42)
+        SelfHealthText.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2 - 42)
     end
 end)
 
@@ -1789,3 +1784,4 @@ AimTab:CreateButton({
         UpdateCrosshairPosition()
     end
 })
+```
