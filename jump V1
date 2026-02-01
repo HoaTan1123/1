@@ -1,0 +1,75 @@
+local ScreenGui = Instance.new("ScreenGui")
+local JumpButton = Instance.new("TextButton")
+
+ScreenGui.Parent = game.CoreGui
+
+JumpButton.Name = "JumpButton"
+JumpButton.Parent = ScreenGui
+JumpButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+JumpButton.Position = UDim2.new(0.4, 0, 0.3, 0)
+JumpButton.Size = UDim2.new(0, 100, 0, 40)
+JumpButton.Font = Enum.Font.SourceSans
+JumpButton.Text = "JUMP"
+JumpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+JumpButton.TextSize = 30.000
+JumpButton.Active = true
+JumpButton.Draggable = true
+
+JumpButton.BorderSizePixel = 2
+JumpButton.BorderColor3 = Color3.fromRGB(255, 0, 0)
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = JumpButton
+
+JumpButton.MouseButton1Down:connect(function()
+    pcall(function()
+        game:GetService("UserInputService").JumpRequest:Fire()
+    end)
+    
+    local char = game.Players.LocalPlayer.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart") or 
+                     char:FindFirstChild("Torso") or 
+                     char:FindFirstChild("UpperTorso")
+        
+        if root then
+            root.Velocity = Vector3.new(root.Velocity.X, 50, root.Velocity.Z)
+        end
+    end
+    
+    task.spawn(function()
+        local char = game.Players.LocalPlayer.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                local bv = Instance.new("BodyVelocity")
+                bv.Velocity = Vector3.new(0, 100, 0)
+                bv.MaxForce = Vector3.new(0, 5000, 0)
+                bv.P = 10000
+                bv.Parent = root
+                
+                wait(0.1)
+                bv:Destroy()
+            end
+        end
+    end)
+    
+    task.spawn(function()
+        local inputService = game:GetService("UserInputService")
+        local inputObj = Instance.new("InputObject")
+        inputObj.UserInputType = Enum.UserInputType.Keyboard
+        inputObj.KeyCode = Enum.KeyCode.Space
+        inputObj.UserInputState = Enum.UserInputState.Begin
+        
+        pcall(function()
+            inputService:ProcessInput(inputObj)
+        end)
+        
+        wait(0.05)
+        
+        inputObj.UserInputState = Enum.UserInputState.End
+        pcall(function()
+            inputService:ProcessInput(inputObj)
+        end)
+    end)
+end)
