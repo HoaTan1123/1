@@ -124,7 +124,7 @@ end
 createPerformanceDisplay()
 
 local Window = Rayfield:CreateWindow({
-   Name = "ESP脚本1.5",
+   Name = "ESP V2",
    LoadingTitle = "脚本加载中",
    LoadingSubtitle = "正在初始化...",
    ConfigurationSaving = {Enabled = true, FolderName = "ESP15"},
@@ -152,6 +152,10 @@ local FriendEnemyColor = Color3.fromRGB(255, 165, 0)
 local ShowHealthBarEnabled = true
 local ShowSelfHealth = false
 local ShowAttackTrail = false
+local JumpEnabled = false
+local JumpUILocked = false
+local JumpUI = nil
+local JumpButtonOriginalPosition = UDim2.new(0.4, 0, 0.3, 0)
 ESPTab:CreateToggle({Name = "透视总开关", CurrentValue = false, Callback = function(v) ESPEnabled = v end})
 ESPTab:CreateToggle({Name = "天线绘制", CurrentValue = true, Callback = function(v) TracerEnabled = v end})
 ESPTab:CreateToggle({Name = "骨骼绘制", CurrentValue = true, Callback = function(v) SkeletonEnabled = v end})
@@ -159,12 +163,113 @@ ESPTab:CreateToggle({Name = "内透Highlight", CurrentValue = true, Callback = f
 ESPTab:CreateToggle({Name = "2D方框", CurrentValue = true, Callback = function(v) Box2DEnabled = v end})
 ESPTab:CreateToggle({Name = "显示血量条", CurrentValue = true, Callback = function(v) ShowHealthBarEnabled = v end})
 ESPTab:CreateToggle({Name = "显示自身血量", CurrentValue = false, Callback = function(v) ShowSelfHealth = v end})
-ESPTab:CreateToggle({Name = "显示攻击轨迹", CurrentValue = false, Callback = function(v) ShowAttackTrail = v end})
+ESPTab:CreateToggle({Name = "显示攻击轨迹 (没用)", CurrentValue = false, Callback = function(v) ShowAttackTrail = v end})
 ESPTab:CreateToggle({Name = "透视亮队友", CurrentValue = false, Callback = function(v) ESPTeamCheck = v end})
 ESPTab:CreateToggle({Name = "墙后检测", CurrentValue = false, Callback = function(v) WallCheckEnabled = v end})
 ESPTab:CreateToggle({Name = "增强扫描", CurrentValue = false, Callback = function(v) EnhancedScanEnabled = v end})
 ESPTab:CreateToggle({Name = "队伍检测", CurrentValue = true, Callback = function(v) TeamDetectionEnabled = v end})
 ESPTab:CreateToggle({Name = "透视好友", CurrentValue = true, Callback = function(v) FriendESPEnabled = v end})
+ESPTab:CreateToggle({Name = "跳跃UI", CurrentValue = false, Callback = function(v) 
+    JumpEnabled = v
+    if v then
+        local ScreenGui = Instance.new("ScreenGui")
+        local JumpButton = Instance.new("TextButton")
+
+        ScreenGui.Parent = game.CoreGui
+
+        JumpButton.Name = "JumpButton"
+        JumpButton.Parent = ScreenGui
+        JumpButton.BackgroundColor3 = Color3.fromRGB(0, 0, 255)
+        JumpButton.Position = JumpButtonOriginalPosition
+        JumpButton.Size = UDim2.new(0, 100, 0, 40)
+        JumpButton.Font = Enum.Font.SourceSans
+        JumpButton.Text = "JUMP"
+        JumpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        JumpButton.TextSize = 30.000
+        JumpButton.Active = true
+        
+        if not JumpUILocked then
+            JumpButton.Draggable = true
+        end
+
+        JumpButton.BorderSizePixel = 2
+        JumpButton.BorderColor3 = Color3.fromRGB(255, 0, 0)
+        local UICorner = Instance.new("UICorner")
+        UICorner.CornerRadius = UDim.new(0, 8)
+        UICorner.Parent = JumpButton
+
+        JumpButton.MouseButton1Down:connect(function()
+            pcall(function()
+                game:GetService("UserInputService").JumpRequest:Fire()
+            end)
+            
+            local char = game.Players.LocalPlayer.Character
+            if char then
+                local root = char:FindFirstChild("HumanoidRootPart") or 
+                             char:FindFirstChild("Torso") or 
+                             char:FindFirstChild("UpperTorso")
+                
+                if root then
+                    root.Velocity = Vector3.new(root.Velocity.X, 50, root.Velocity.Z)
+                end
+            end
+            
+            task.spawn(function()
+                local char = game.Players.LocalPlayer.Character
+                if char then
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local bv = Instance.new("BodyVelocity")
+                        bv.Velocity = Vector3.new(0, 100, 0)
+                        bv.MaxForce = Vector3.new(0, 5000, 0)
+                        bv.P = 10000
+                        bv.Parent = root
+                        
+                        wait(0.1)
+                        bv:Destroy()
+                    end
+                end
+            end)
+            
+            task.spawn(function()
+                local inputService = game:GetService("UserInputService")
+                local inputObj = Instance.new("InputObject")
+                inputObj.UserInputType = Enum.UserInputType.Keyboard
+                inputObj.KeyCode = Enum.KeyCode.Space
+                inputObj.UserInputState = Enum.UserInputState.Begin
+                
+                pcall(function()
+                    inputService:ProcessInput(inputObj)
+                end)
+                
+                wait(0.05)
+                
+                inputObj.UserInputState = Enum.UserInputState.End
+                pcall(function()
+                    inputService:ProcessInput(inputObj)
+                end)
+            end)
+        end)
+        
+        JumpUI = ScreenGui
+    else
+        if JumpUI then
+            JumpUI:Destroy()
+            JumpUI = nil
+        end
+    end
+end})
+ESPTab:CreateToggle({Name = "跳跃锁定UI", CurrentValue = false, Callback = function(v) 
+    JumpUILocked = v
+    if JumpUI and JumpUI:FindFirstChild("JumpButton") then
+        JumpUI.JumpButton.Draggable = not v
+    end
+end})
+ESPTab:CreateButton({Name = "重置跳跃UI位置", Callback = function()
+    if JumpUI and JumpUI:FindFirstChild("JumpButton") then
+        JumpUI.JumpButton.Position = JumpButtonOriginalPosition
+    end
+end})
 ESPTab:CreateColorPicker({
     Name = "好友(队友)颜色",
     Color = Color3.fromRGB(0, 100, 255),
@@ -1446,14 +1551,47 @@ local ShowTargetUI = true
 local MaxDistance = 1000
 local CrosshairXOffset = 0
 local CrosshairYOffset = 0
+local HitboxEnabled = false
+local HitboxSize = 20
+local HitboxColor = BrickColor.new("Really black")
+local HitboxConnection = nil
 local AimCircle = Drawing.new("Circle")
 AimCircle.Visible = false
-AimCircle.Thickness = 2
+AimCircle.Thickness = 1
 AimCircle.Color = Color3.fromRGB(255, 0, 0)
 AimCircle.Filled = false
 AimCircle.Radius = AimFOV
 local CurrentTarget = nil
 local TargetHighlights = {}
+
+local function StartHitbox()
+    if not HitboxConnection then
+        HitboxConnection = RunService.RenderStepped:Connect(function()
+            if not HitboxEnabled then
+                return
+            end
+            for i, v in next, game:GetService('Players'):GetPlayers() do
+                if v.Name ~= game.Players.LocalPlayer.Name then
+                    pcall(function()
+                        v.Character.HumanoidRootPart.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                        v.Character.HumanoidRootPart.Transparency = 0.7
+                        v.Character.HumanoidRootPart.BrickColor = HitboxColor
+                        v.Character.HumanoidRootPart.Material = "Neon"
+                        v.Character.HumanoidRootPart.CanCollide = false
+                    end)
+                end
+            end
+        end)
+    end
+end
+
+local function StopHitbox()
+    if HitboxConnection then
+        HitboxConnection:Disconnect()
+        HitboxConnection = nil
+    end
+end
+
 local function IsLocalPlayerAlive()
     if not LocalPlayer.Character then return false end
     local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -1676,6 +1814,18 @@ AimTab:CreateToggle({
         UpdateTargetUI()
     end
 })
+AimTab:CreateToggle({
+    Name = "碰撞箱",
+    CurrentValue = false,
+    Callback = function(Value)
+        HitboxEnabled = Value
+        if Value then
+            StartHitbox()
+        else
+            StopHitbox()
+        end
+    end
+})
 AimTab:CreateSlider({
     Name = "FOV大小",
     Range = {1, 600},
@@ -1692,9 +1842,19 @@ AimTab:CreateSlider({
     Range = {1, 10},
     Increment = 1,
     Suffix = "像素",
-    CurrentValue = AimCircle.Thickness,
+    CurrentValue = 1,
     Callback = function(Value)
         AimCircle.Thickness = Value
+    end
+})
+AimTab:CreateSlider({
+    Name = "碰撞箱大小",
+    Range = {0, 1000},
+    Increment = 1,
+    Suffix = "单位",
+    CurrentValue = 20,
+    Callback = function(Value)
+        HitboxSize = Value
     end
 })
 AimTab:CreateSlider({
