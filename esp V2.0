@@ -163,7 +163,7 @@ ESPTab:CreateToggle({Name = "内透Highlight", CurrentValue = true, Callback = f
 ESPTab:CreateToggle({Name = "2D方框", CurrentValue = true, Callback = function(v) Box2DEnabled = v end})
 ESPTab:CreateToggle({Name = "显示血量条", CurrentValue = true, Callback = function(v) ShowHealthBarEnabled = v end})
 ESPTab:CreateToggle({Name = "显示自身血量", CurrentValue = false, Callback = function(v) ShowSelfHealth = v end})
-ESPTab:CreateToggle({Name = "显示攻击轨迹 (没用)", CurrentValue = false, Callback = function(v) ShowAttackTrail = v end})
+ESPTab:CreateToggle({Name = "显示攻击轨迹", CurrentValue = false, Callback = function(v) ShowAttackTrail = v end})
 ESPTab:CreateToggle({Name = "透视亮队友", CurrentValue = false, Callback = function(v) ESPTeamCheck = v end})
 ESPTab:CreateToggle({Name = "墙后检测", CurrentValue = false, Callback = function(v) WallCheckEnabled = v end})
 ESPTab:CreateToggle({Name = "增强扫描", CurrentValue = false, Callback = function(v) EnhancedScanEnabled = v end})
@@ -1555,6 +1555,7 @@ local HitboxEnabled = false
 local HitboxSize = 20
 local HitboxColor = BrickColor.new("Really black")
 local HitboxConnection = nil
+local HitboxPart = "Head"
 local AimCircle = Drawing.new("Circle")
 AimCircle.Visible = false
 AimCircle.Thickness = 1
@@ -1573,11 +1574,25 @@ local function StartHitbox()
             for i, v in next, game:GetService('Players'):GetPlayers() do
                 if v.Name ~= game.Players.LocalPlayer.Name then
                     pcall(function()
-                        v.Character.HumanoidRootPart.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
-                        v.Character.HumanoidRootPart.Transparency = 0.7
-                        v.Character.HumanoidRootPart.BrickColor = HitboxColor
-                        v.Character.HumanoidRootPart.Material = "Neon"
-                        v.Character.HumanoidRootPart.CanCollide = false
+                        if TeamCheck and v.Team == LocalPlayer.Team then
+                            local part = v.Character:FindFirstChild(HitboxPart)
+                            if part then
+                                part.Size = Vector3.new(1, 1, 1)
+                                part.Transparency = 0
+                                part.BrickColor = BrickColor.new("Medium stone grey")
+                                part.Material = "Plastic"
+                                part.CanCollide = true
+                            end
+                        else
+                            local part = v.Character:FindFirstChild(HitboxPart)
+                            if part then
+                                part.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
+                                part.Transparency = 0.7
+                                part.BrickColor = HitboxColor
+                                part.Material = "Neon"
+                                part.CanCollide = false
+                            end
+                        end
                     end)
                 end
             end
@@ -1589,6 +1604,20 @@ local function StopHitbox()
     if HitboxConnection then
         HitboxConnection:Disconnect()
         HitboxConnection = nil
+        for i, v in next, game:GetService('Players'):GetPlayers() do
+            if v.Name ~= game.Players.LocalPlayer.Name then
+                pcall(function()
+                    local part = v.Character:FindFirstChild(HitboxPart)
+                    if part then
+                        part.Size = Vector3.new(1, 1, 1)
+                        part.Transparency = 0
+                        part.BrickColor = BrickColor.new("Medium stone grey")
+                        part.Material = "Plastic"
+                        part.CanCollide = true
+                    end
+                end)
+            end
+        end
     end
 end
 
@@ -1824,6 +1853,24 @@ AimTab:CreateToggle({
         else
             StopHitbox()
         end
+    end
+})
+local HitboxBodyParts = {
+    ["头"] = "Head",
+    ["胸"] = "UpperTorso",
+    ["腰"] = "LowerTorso",
+    ["左手"] = "LeftHand",
+    ["右手"] = "RightHand",
+    ["左腿"] = "LeftFoot",
+    ["右腿"] = "RightFoot",
+    ["HumanoidRootPart"] = "HumanoidRootPart"
+}
+AimTab:CreateDropdown({
+    Name = "碰撞箱部位",
+    Options = {"头", "胸", "腰", "左手", "右手", "左腿", "右腿", "HumanoidRootPart"},
+    CurrentOption = "头",
+    Callback = function(Value)
+        HitboxPart = HitboxBodyParts[Value]
     end
 })
 AimTab:CreateSlider({
