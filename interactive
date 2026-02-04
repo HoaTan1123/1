@@ -1,0 +1,117 @@
+local ScreenGui = Instance.new("ScreenGui")
+local InteractButton = Instance.new("TextButton")
+
+ScreenGui.Parent = game.CoreGui
+
+InteractButton.Name = "InteractButton"
+InteractButton.Parent = ScreenGui
+InteractButton.BackgroundColor3 = Color3.fromRGB(0, 128, 0)
+InteractButton.Position = UDim2.new(0.5, 0, 0.6, 0)
+InteractButton.Size = UDim2.new(0, 120, 0, 40)
+InteractButton.Font = Enum.Font.SourceSans
+InteractButton.Text = "INTERACT"
+InteractButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+InteractButton.TextSize = 30.000
+InteractButton.Active = true
+InteractButton.Draggable = true
+
+InteractButton.BorderSizePixel = 2
+InteractButton.BorderColor3 = Color3.fromRGB(255, 255, 255)
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = InteractButton
+
+local function AutoInteract()
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    local character = player.Character
+    
+    if character then
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local playerPos = rootPart.Position
+            local closestPrompt = nil
+            local closestDistance = math.huge
+            
+            for _, descendant in pairs(workspace:GetDescendants()) do
+                if descendant:IsA("ProximityPrompt") then
+                    local part = descendant.Parent
+                    local promptPos
+                    
+                    if part:IsA("BasePart") then
+                        promptPos = part.Position
+                    elseif part:IsA("Model") and part.PrimaryPart then
+                        promptPos = part.PrimaryPart.Position
+                    else
+                        for _, child in pairs(part:GetChildren()) do
+                            if child:IsA("BasePart") then
+                                promptPos = child.Position
+                                break
+                            end
+                        end
+                    end
+                    
+                    if promptPos then
+                        local distance = (playerPos - promptPos).Magnitude
+                        if distance <= 10 and distance < closestDistance then
+                            closestPrompt = descendant
+                            closestDistance = distance
+                        end
+                    end
+                end
+            end
+            
+            if closestPrompt then
+                fireproximityprompt(closestPrompt)
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+local autoInteract = false
+local autoInteractThread
+local clickCount = 0
+local clickTimer = 0
+
+InteractButton.MouseButton1Down:connect(function()
+    local currentTime = tick()
+    
+    if currentTime - clickTimer < 0.5 then
+        clickCount = clickCount + 1
+    else
+        clickCount = 1
+    end
+    
+    clickTimer = currentTime
+    
+    if clickCount == 1 then
+        if autoInteract then
+            autoInteract = false
+            InteractButton.Text = "INTERACT"
+            InteractButton.BackgroundColor3 = Color3.fromRGB(0, 128, 0)
+            
+            if autoInteractThread then
+                task.cancel(autoInteractThread)
+                autoInteractThread = nil
+            end
+        else
+            AutoInteract()
+        end
+    end
+    
+    if clickCount == 3 and not autoInteract then
+        autoInteract = true
+        InteractButton.Text = "AUTO ON"
+        InteractButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        
+        autoInteractThread = task.spawn(function()
+            while autoInteract do
+                AutoInteract()
+                task.wait(0.25)
+            end
+        end)
+    end
+end)
