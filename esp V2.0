@@ -294,7 +294,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
     local interactMaxDistance = 10
     
     ESPTab:CreateToggle({
-        Name = "透视互动按钮",
+        Name = "互动按钮",
         CurrentValue = false,
         Callback = function(v)
             buttonBindEnabled = v
