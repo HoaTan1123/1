@@ -1,4 +1,4 @@
-   local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local function createPerformanceDisplay()
         local screenGui = Instance.new("ScreenGui")
@@ -284,6 +284,186 @@
             FriendEnemyColor = Value
         end
     })
+    
+    local buttonBindEnabled = false
+    local InteractUI = nil
+    local buttonUILocked = false
+    local buttonUIOriginalPosition = UDim2.new(0.5, 0, 0.6, 0)
+    local autoInteract = false
+    local autoInteractThread = nil
+    local interactMaxDistance = 10
+    
+    ESPTab:CreateToggle({
+        Name = "透视互动按钮",
+        CurrentValue = false,
+        Callback = function(v)
+            buttonBindEnabled = v
+            if v then
+                local ScreenGui = Instance.new("ScreenGui")
+                local InteractButton = Instance.new("TextButton")
+
+                ScreenGui.Parent = game.CoreGui
+
+                InteractButton.Name = "InteractButton"
+                InteractButton.Parent = ScreenGui
+                InteractButton.BackgroundColor3 = Color3.fromRGB(0, 128, 0)
+                InteractButton.Position = buttonUIOriginalPosition
+                InteractButton.Size = UDim2.new(0, 120, 0, 40)
+                InteractButton.Font = Enum.Font.SourceSans
+                InteractButton.Text = "INTERACT"
+                InteractButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                InteractButton.TextSize = 30.000
+                InteractButton.Active = true
+                
+                if not buttonUILocked then
+                    InteractButton.Draggable = true
+                end
+
+                InteractButton.BorderSizePixel = 2
+                InteractButton.BorderColor3 = Color3.fromRGB(255, 255, 255)
+                local UICorner = Instance.new("UICorner")
+                UICorner.CornerRadius = UDim.new(0, 8)
+                UICorner.Parent = InteractButton
+
+                local function AutoInteract()
+                    local Players = game:GetService("Players")
+                    local player = Players.LocalPlayer
+                    local character = player.Character
+                    
+                    if character then
+                        local rootPart = character:FindFirstChild("HumanoidRootPart")
+                        if rootPart then
+                            local playerPos = rootPart.Position
+                            local closestPrompt = nil
+                            local closestDistance = math.huge
+                            
+                            for _, descendant in pairs(workspace:GetDescendants()) do
+                                if descendant:IsA("ProximityPrompt") then
+                                    local part = descendant.Parent
+                                    local promptPos
+                                    
+                                    if part:IsA("BasePart") then
+                                        promptPos = part.Position
+                                    elseif part:IsA("Model") and part.PrimaryPart then
+                                        promptPos = part.PrimaryPart.Position
+                                    else
+                                        for _, child in pairs(part:GetChildren()) do
+                                            if child:IsA("BasePart") then
+                                                promptPos = child.Position
+                                                break
+                                            end
+                                        end
+                                    end
+                                    
+                                    if promptPos then
+                                        local distance = (playerPos - promptPos).Magnitude
+                                        if distance <= interactMaxDistance and distance < closestDistance then
+                                            closestPrompt = descendant
+                                            closestDistance = distance
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            if closestPrompt then
+                                fireproximityprompt(closestPrompt)
+                                return true
+                            end
+                        end
+                    end
+                    
+                    return false
+                end
+
+                local clickCount = 0
+                local clickTimer = 0
+
+                InteractButton.MouseButton1Down:connect(function()
+                    local currentTime = tick()
+                    
+                    if currentTime - clickTimer < 0.5 then
+                        clickCount = clickCount + 1
+                    else
+                        clickCount = 1
+                    end
+                    
+                    clickTimer = currentTime
+                    
+                    if clickCount == 1 then
+                        if autoInteract then
+                            autoInteract = false
+                            InteractButton.Text = "INTERACT"
+                            InteractButton.BackgroundColor3 = Color3.fromRGB(0, 128, 0)
+                            
+                            if autoInteractThread then
+                                task.cancel(autoInteractThread)
+                                autoInteractThread = nil
+                            end
+                        else
+                            AutoInteract()
+                        end
+                    end
+                    
+                    if clickCount == 3 and not autoInteract then
+                        autoInteract = true
+                        InteractButton.Text = "AUTO ON"
+                        InteractButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                        
+                        autoInteractThread = task.spawn(function()
+                            while autoInteract do
+                                AutoInteract()
+                                task.wait(0.25)
+                            end
+                        end)
+                    end
+                end)
+                
+                InteractUI = ScreenGui
+            else
+                if InteractUI then
+                    InteractUI:Destroy()
+                    InteractUI = nil
+                end
+                autoInteract = false
+                if autoInteractThread then
+                    task.cancel(autoInteractThread)
+                    autoInteractThread = nil
+                end
+            end
+        end
+    })
+    
+    ESPTab:CreateToggle({
+        Name = "互动按钮锁定",
+        CurrentValue = false,
+        Callback = function(v)
+            buttonUILocked = v
+            if InteractUI and InteractUI:FindFirstChild("InteractButton") then
+                InteractUI.InteractButton.Draggable = not v
+            end
+        end
+    })
+    
+    ESPTab:CreateButton({
+        Name = "重置互动按钮位置",
+        Callback = function()
+            if InteractUI and InteractUI:FindFirstChild("InteractButton") then
+                InteractUI.InteractButton.Position = buttonUIOriginalPosition
+            end
+        end
+    })
+    
+    ESPTab:CreateSlider({
+        Name = "互动距离",
+        Range = {5, 1000},
+        Increment = 5,
+        Suffix = "单位",
+        CurrentValue = 10,
+        Callback = function(Value)
+            interactMaxDistance = Value
+        end
+    })
+    
     local Tracers = {}
     local Skeletons = {}
     local Highlights = {}
@@ -1537,6 +1717,263 @@
             getgenv().gg_scripters = "g5s"
         end
     })
+    
+    OtherTab:CreateButton({
+        Name = "极速旋转",
+        Callback = function()
+            local player = game:GetService("Players").LocalPlayer
+            local runService = game:GetService("RunService")
+            local userInputService = game:GetService("UserInputService")
+            local coreGui = game:GetService("CoreGui")
+
+            local function createUltraFastSpinSystem()
+                local rotationSpeed = 999990
+                local rotationRadius = 0.5
+                local rotationAngle = 0
+                local isSpinning = false
+                local spinConnection = nil
+                
+                local function startSpinning()
+                    if isSpinning then return end
+                    
+                    local character = player.Character
+                    if not character then return end
+                    
+                    local rootPart = character:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return end
+                    
+                    isSpinning = true
+                    
+                    spinConnection = runService.Heartbeat:Connect(function()
+                        if not character or not character.Parent or not isSpinning then
+                            if spinConnection then
+                                spinConnection:Disconnect()
+                                spinConnection = nil
+                            end
+                            isSpinning = false
+                            return
+                        end
+                        
+                        rootPart = character:FindFirstChild("HumanoidRootPart")
+                        if not rootPart then return end
+                        
+                        rotationAngle = rotationAngle + rotationSpeed
+                        if rotationAngle > 360 then
+                            rotationAngle = rotationAngle - 360
+                        end
+                        
+                        local rad = math.rad(rotationAngle)
+                        local offsetX = math.cos(rad) * rotationRadius
+                        local offsetZ = math.sin(rad) * rotationRadius
+                        
+                        rootPart.CFrame = CFrame.new(
+                            rootPart.Position.X + offsetX,
+                            rootPart.Position.Y,
+                            rootPart.Position.Z + offsetZ
+                        ) * CFrame.Angles(0, rad, 0)
+                    end)
+                end
+                
+                local function stopSpinning()
+                    isSpinning = false
+                    
+                    if spinConnection then
+                        spinConnection:Disconnect()
+                        spinConnection = nil
+                    end
+                    
+                    rotationAngle = 0
+                end
+                
+                return {
+                    start = startSpinning,
+                    stop = stopSpinning,
+                    isSpinning = function() return isSpinning end
+                }
+            end
+
+            local spinSystem = createUltraFastSpinSystem()
+
+            local gui = nil
+            local mainFrame = nil
+            local closeButton = nil
+            local contentContainer = nil
+
+            local function IsClickInput(Input)
+                return Input.UserInputType == Enum.UserInputType.MouseButton1 or 
+                       Input.UserInputType == Enum.UserInputType.Touch
+            end
+
+            local function IsHoverInput(Input)
+                return Input.UserInputType == Enum.UserInputType.MouseMovement or 
+                       Input.UserInputType == Enum.UserInputType.Touch
+            end
+
+            local function MakeDraggable(UI, DragFrame)
+                local StartPos
+                local FramePos
+                local Dragging = false
+                local Changed
+
+                DragFrame.InputBegan:Connect(function(Input)
+                    if not IsClickInput(Input) then
+                        return
+                    end
+
+                    StartPos = Input.Position
+                    FramePos = UI.Position
+                    Dragging = true
+
+                    Changed = Input.Changed:Connect(function()
+                        if Input.UserInputState ~= Enum.UserInputState.End then
+                            return
+                        end
+
+                        Dragging = false
+                        if Changed and Changed.Connected then
+                            Changed:Disconnect()
+                            Changed = nil
+                        end
+                    end)
+                end)
+
+                userInputService.InputChanged:Connect(function(Input)
+                    if not UI.Visible or not UI.Parent or not UI.Parent.Parent then
+                        Dragging = false
+                        if Changed and Changed.Connected then
+                            Changed:Disconnect()
+                            Changed = nil
+                        end
+                        return
+                    end
+
+                    if Dragging and IsHoverInput(Input) then
+                        local Delta = Input.Position - StartPos
+                        UI.Position = UDim2.new(
+                            FramePos.X.Scale, 
+                            FramePos.X.Offset + Delta.X, 
+                            FramePos.Y.Scale, 
+                            FramePos.Y.Offset + Delta.Y
+                        )
+                    end
+                end)
+            end
+
+            local function createDraggableUI()
+                gui = Instance.new("ScreenGui")
+                gui.Name = "SpinControl"
+                gui.ResetOnSpawn = false
+                gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+                gui.Parent = coreGui
+
+                mainFrame = Instance.new("Frame")
+                mainFrame.Name = "Main"
+                mainFrame.Size = UDim2.new(0, 150, 0, 60)
+                mainFrame.Position = UDim2.new(0, 10, 0, 10)
+                mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                mainFrame.BackgroundTransparency = 0.8
+                mainFrame.BorderSizePixel = 0
+                mainFrame.Visible = true
+                mainFrame.Active = true
+                mainFrame.Selectable = true
+                mainFrame.Parent = gui
+
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0, 5)
+                corner.Parent = mainFrame
+
+                contentContainer = Instance.new("Frame")
+                contentContainer.Name = "ContentContainer"
+                contentContainer.Size = UDim2.new(1, 0, 1, -20)
+                contentContainer.Position = UDim2.new(0, 0, 0, 20)
+                contentContainer.BackgroundTransparency = 1
+                contentContainer.BorderSizePixel = 0
+                contentContainer.Parent = mainFrame
+
+                local titleBar = Instance.new("TextLabel")
+                titleBar.Name = "TitleBar"
+                titleBar.Size = UDim2.new(1, 0, 0, 20)
+                titleBar.Position = UDim2.new(0, 0, 0, 0)
+                titleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                titleBar.BackgroundTransparency = 0.7
+                titleBar.BorderSizePixel = 0
+                titleBar.Text = "spin"
+                titleBar.TextColor3 = Color3.fromRGB(200, 200, 200)
+                titleBar.TextSize = 12
+                titleBar.Font = Enum.Font.Gotham
+                titleBar.Parent = mainFrame
+
+                local titleCorner = Instance.new("UICorner")
+                titleCorner.CornerRadius = UDim.new(0, 5)
+                titleCorner.Parent = titleBar
+
+                closeButton = Instance.new("TextButton")
+                closeButton.Name = "CloseButton"
+                closeButton.Size = UDim2.new(0, 16, 0, 16)
+                closeButton.Position = UDim2.new(1, -18, 0, 2)
+                closeButton.AnchorPoint = Vector2.new(1, 0)
+                closeButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+                closeButton.BackgroundTransparency = 0.7
+                closeButton.BorderSizePixel = 0
+                closeButton.Text = "X"
+                closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                closeButton.TextSize = 12
+                closeButton.Font = Enum.Font.GothamBold
+                closeButton.Parent = titleBar
+
+                local closeCorner = Instance.new("UICorner")
+                closeCorner.CornerRadius = UDim.new(0, 3)
+                closeCorner.Parent = closeButton
+
+                local toggleButton = Instance.new("TextButton")
+                toggleButton.Name = "Toggle"
+                toggleButton.Size = UDim2.new(0.9, 0, 0, 30)
+                toggleButton.Position = UDim2.new(0.05, 0, 0, 0)
+                toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                toggleButton.BorderSizePixel = 0
+                toggleButton.Text = "旋转"
+                toggleButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+                toggleButton.TextSize = 14
+                toggleButton.Font = Enum.Font.Gotham
+                toggleButton.Parent = contentContainer
+
+                local toggleCorner = Instance.new("UICorner")
+                toggleCorner.CornerRadius = UDim.new(0, 3)
+                toggleCorner.Parent = toggleButton
+
+                MakeDraggable(mainFrame, titleBar)
+
+                closeButton.MouseButton1Click:Connect(function()
+                    mainFrame.Visible = false
+                end)
+
+                toggleButton.MouseButton1Click:Connect(function()
+                    if spinSystem.isSpinning() then
+                        spinSystem.stop()
+                        toggleButton.Text = "极速旋转"
+                        toggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                    else
+                        spinSystem.start()
+                        toggleButton.Text = "停止旋转"
+                        toggleButton.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+                    end
+                end)
+
+                userInputService.InputBegan:Connect(function(input, gameProcessed)
+                    if gameProcessed then return end
+
+                    if input.KeyCode == Enum.KeyCode.Insert then
+                        mainFrame.Visible = not mainFrame.Visible
+                    end
+                end)
+
+                return gui
+            end
+
+            createDraggableUI()
+        end
+    })
+    
     local HitboxV2Enabled = false
     local HitboxV2Size = 4.5
     local HitboxV2Color = BrickColor.new("Really blue")
