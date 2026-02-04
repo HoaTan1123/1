@@ -39,7 +39,7 @@ local function MakeDraggable(UI, DragFrame)
     local FramePos
     local Dragging = false
     local Changed
-    
+
     DragFrame.InputBegan:Connect(function(Input)
         if not IsClickInput(Input) then
             return
@@ -61,7 +61,7 @@ local function MakeDraggable(UI, DragFrame)
             end
         end)
     end)
-    
+
     UserInputService.InputChanged:Connect(function(Input)
         if not UI.Visible or not UI.Parent or not UI.Parent.Parent then
             Dragging = false
@@ -90,7 +90,7 @@ local function createDraggableUI()
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = CoreGui
-    
+
     mainFrame = Instance.new("Frame")
     mainFrame.Name = "Main"
     mainFrame.Size = UDim2.new(0, 176, 0, 132)
@@ -102,13 +102,13 @@ local function createDraggableUI()
     mainFrame.Active = true
     mainFrame.Selectable = true
     mainFrame.Parent = gui
-    
+
     originalSize = mainFrame.Size
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = mainFrame
-    
+
     contentContainer = Instance.new("Frame")
     contentContainer.Name = "ContentContainer"
     contentContainer.Size = UDim2.new(1, 0, 1, -26)
@@ -116,7 +116,7 @@ local function createDraggableUI()
     contentContainer.BackgroundTransparency = 1
     contentContainer.BorderSizePixel = 0
     contentContainer.Parent = mainFrame
-    
+
     local titleBar = Instance.new("TextLabel")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, 26)
@@ -129,11 +129,11 @@ local function createDraggableUI()
     titleBar.TextSize = 15
     titleBar.Font = Enum.Font.Gotham
     titleBar.Parent = mainFrame
-    
+
     local titleCorner = Instance.new("UICorner")
     titleCorner.CornerRadius = UDim.new(0, 5)
     titleCorner.Parent = titleBar
-    
+
     closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Size = UDim2.new(0, 22, 0, 22)
@@ -147,11 +147,11 @@ local function createDraggableUI()
     closeButton.TextSize = 15
     closeButton.Font = Enum.Font.GothamBold
     closeButton.Parent = titleBar
-    
+
     local closeCorner = Instance.new("UICorner")
     closeCorner.CornerRadius = UDim.new(0, 3)
     closeCorner.Parent = closeButton
-    
+
     minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
     minimizeButton.Size = UDim2.new(0, 22, 0, 22)
@@ -165,11 +165,11 @@ local function createDraggableUI()
     minimizeButton.TextSize = 18
     minimizeButton.Font = Enum.Font.GothamBold
     minimizeButton.Parent = titleBar
-    
+
     local minimizeCorner = Instance.new("UICorner")
     minimizeCorner.CornerRadius = UDim.new(0, 3)
     minimizeCorner.Parent = minimizeButton
-    
+
     local parallelButton = Instance.new("TextButton")
     parallelButton.Name = "Parallel"
     parallelButton.Size = UDim2.new(0.9, 0, 0, 26)
@@ -182,11 +182,11 @@ local function createDraggableUI()
     parallelButton.TextSize = 13
     parallelButton.Font = Enum.Font.Gotham
     parallelButton.Parent = contentContainer
-    
+
     local parallelCorner = Instance.new("UICorner")
     parallelCorner.CornerRadius = UDim.new(0, 3)
     parallelCorner.Parent = parallelButton
-    
+
     local upButton = Instance.new("TextButton")
     upButton.Name = "Up"
     upButton.Size = UDim2.new(0.9, 0, 0, 26)
@@ -199,11 +199,11 @@ local function createDraggableUI()
     upButton.TextSize = 13
     upButton.Font = Enum.Font.Gotham
     upButton.Parent = contentContainer
-    
+
     local upCorner = Instance.new("UICorner")
     upCorner.CornerRadius = UDim.new(0, 3)
     upCorner.Parent = upButton
-    
+
     local downButton = Instance.new("TextButton")
     downButton.Name = "Down"
     downButton.Size = UDim2.new(0.9, 0, 0, 26)
@@ -216,16 +216,16 @@ local function createDraggableUI()
     downButton.TextSize = 13
     downButton.Font = Enum.Font.Gotham
     downButton.Parent = contentContainer
-    
+
     local downCorner = Instance.new("UICorner")
     downCorner.CornerRadius = UDim.new(0, 3)
     downCorner.Parent = downButton
-    
+
     MakeDraggable(mainFrame, titleBar)
-    
+
     local function toggleMinimize()
         isMinimized = not isMinimized
-        
+
         if isMinimized then
             mainFrame.Size = minimizedSize
             contentContainer.Visible = false
@@ -235,7 +235,7 @@ local function createDraggableUI()
             contentContainer.Visible = true
             minimizeButton.Text = "-"
         end
-        
+
         if isMinimized then
             titleCorner.CornerRadius = UDim.new(0, 5)
             corner.CornerRadius = UDim.new(0, 5)
@@ -244,20 +244,20 @@ local function createDraggableUI()
             corner.CornerRadius = UDim.new(0, 5)
         end
     end
-    
+
     minimizeButton.MouseButton1Click:Connect(toggleMinimize)
-    
+
     closeButton.MouseButton1Click:Connect(function()
         mainFrame.Visible = false
     end)
-    
+
     local function ensurePlayerOnBlock()
         if not followBlock then return end
-        
+
         if playerConnection then
             playerConnection:Disconnect()
         end
-        
+
         playerConnection = RunService.Heartbeat:Connect(function()
             if not followBlock or not followBlock.Parent then
                 if playerConnection then
@@ -265,21 +265,22 @@ local function createDraggableUI()
                 end
                 return
             end
-            
+
             local character = player.Character
             if not character then return end
-            
+
             local rootPart = character:FindFirstChild("HumanoidRootPart")
             if not rootPart then return end
-            
+
+            local currentCFrame = rootPart.CFrame
             rootPart.CFrame = CFrame.new(
                 followBlock.Position.X,
                 followBlock.Position.Y + 3,
                 followBlock.Position.Z
-            )
+            ) * (currentCFrame - currentCFrame.Position)
         end)
     end
-    
+
     upButton.MouseButton1Down:Connect(function()
         isUpPressed = true
         local connection
@@ -293,15 +294,15 @@ local function createDraggableUI()
             currentHeight = currentHeight + 0.5
         end)
     end)
-    
+
     upButton.MouseButton1Up:Connect(function()
         isUpPressed = false
     end)
-    
+
     upButton.MouseLeave:Connect(function()
         isUpPressed = false
     end)
-    
+
     downButton.MouseButton1Down:Connect(function()
         isDownPressed = true
         local connection
@@ -315,22 +316,22 @@ local function createDraggableUI()
             currentHeight = currentHeight - 0.5
         end)
     end)
-    
+
     downButton.MouseButton1Up:Connect(function()
         isDownPressed = false
     end)
-    
+
     downButton.MouseLeave:Connect(function()
         isDownPressed = false
     end)
-    
+
     parallelButton.MouseButton1Click:Connect(function()
         local character = player.Character
         if not character then return end
-        
+
         local rootPart = character:FindFirstChild("HumanoidRootPart")
         if not rootPart then return end
-        
+
         if followBlock then
             if followConnection then
                 followConnection:Disconnect()
@@ -344,9 +345,9 @@ local function createDraggableUI()
             followBlock = nil
             return
         end
-        
+
         currentHeight = rootPart.Position.Y - 3
-        
+
         followBlock = Instance.new("Part")
         followBlock.Name = "FollowBlock"
         followBlock.Anchored = true
@@ -356,9 +357,9 @@ local function createDraggableUI()
         followBlock.Size = Vector3.new(10, 1, 10)
         followBlock.Material = Enum.Material.SmoothPlastic
         followBlock.Parent = workspace
-        
+
         ensurePlayerOnBlock()
-        
+
         followConnection = RunService.Heartbeat:Connect(function()
             if not character or not character.Parent then
                 if followConnection then
@@ -375,10 +376,10 @@ local function createDraggableUI()
                 end
                 return
             end
-            
+
             rootPart = character:FindFirstChild("HumanoidRootPart")
             if not rootPart then return end
-            
+
             followBlock.Position = Vector3.new(
                 rootPart.Position.X,
                 currentHeight,
@@ -386,15 +387,15 @@ local function createDraggableUI()
             )
         end)
     end)
-    
+
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
-        
+
         if input.KeyCode == Enum.KeyCode.Insert then
             mainFrame.Visible = not mainFrame.Visible
         end
     end)
-    
+
     return gui
 end
 
