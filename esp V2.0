@@ -160,7 +160,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
     ESPTab:CreateToggle({Name = "天线绘制", CurrentValue = true, Callback = function(v) TracerEnabled = v end})
     ESPTab:CreateToggle({Name = "骨骼绘制", CurrentValue = true, Callback = function(v) SkeletonEnabled = v end})
     ESPTab:CreateToggle({Name = "内透Highlight", CurrentValue = true, Callback = function(v) HighlightEnabled = v end})
-    ESPTab:CreateToggle({Name = "2D方框", CurrentValue = true, Callback = function(v) Box2DEnabled = v end})
+    ESPTab:CreateToggle({Name = "方框", CurrentValue = true, Callback = function(v) Box2DEnabled = v end})
     ESPTab:CreateToggle({Name = "显示血量条", CurrentValue = true, Callback = function(v) ShowHealthBarEnabled = v end})
     ESPTab:CreateToggle({Name = "显示自身血量", CurrentValue = false, Callback = function(v) ShowSelfHealth = v end})
     ESPTab:CreateToggle({Name = "显示攻击轨迹", CurrentValue = false, Callback = function(v) ShowAttackTrail = v end})
@@ -294,7 +294,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
     local interactMaxDistance = 10
     
     ESPTab:CreateToggle({
-        Name = "互动按钮",
+        Name = "透视互动按钮",
         CurrentValue = false,
         Callback = function(v)
             buttonBindEnabled = v
@@ -461,6 +461,155 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
         CurrentValue = 10,
         Callback = function(Value)
             interactMaxDistance = Value
+        end
+    })
+    
+    local spiderEnabled = false
+    local SpiderUI = nil
+    local spiderUILocked = false
+    local spiderUIOriginalPosition = UDim2.new(0.7, 0, 0.3, 0)
+    
+    local Mode = 'Velocity'
+    local Value = 30
+    local State = true
+    local rayCheck = RaycastParams.new()
+    rayCheck.RespectCanCollide = true
+    local Active, Truss
+    local spiderConnection = nil
+    
+    ESPTab:CreateToggle({
+        Name = "爬墙UI",
+        CurrentValue = false,
+        Callback = function(v)
+            spiderEnabled = v
+            if v then
+                local ScreenGui = Instance.new("ScreenGui")
+                local SpiderButton = Instance.new("TextButton")
+
+                ScreenGui.Parent = game.CoreGui
+
+                SpiderButton.Name = "SpiderButton"
+                SpiderButton.Parent = ScreenGui
+                SpiderButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+                SpiderButton.Position = spiderUIOriginalPosition
+                SpiderButton.Size = UDim2.new(0, 100, 0, 40)
+                SpiderButton.Font = Enum.Font.SourceSans
+                SpiderButton.Text = "SPIDER"
+                SpiderButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+                SpiderButton.TextSize = 30.000
+                SpiderButton.Active = true
+                
+                if not spiderUILocked then
+                    SpiderButton.Draggable = true
+                end
+
+                SpiderButton.BorderSizePixel = 2
+                SpiderButton.BorderColor3 = Color3.fromRGB(255, 255, 255)
+                local UICorner = Instance.new("UICorner")
+                UICorner.CornerRadius = UDim.new(0, 8)
+                UICorner.Parent = SpiderButton
+
+                local function startSpider()
+                    if spiderConnection then return end
+                    
+                    SpiderButton.Text = "ON"
+                    SpiderButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+                    
+                    spiderConnection = game:GetService("RunService").PreSimulation:Connect(function(dt)
+                        local character = LocalPlayer.Character
+                        if character and character:FindFirstChildOfClass("Humanoid") and character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                            local root = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+                            local humanoid = character:FindFirstChildOfClass("Humanoid")
+                            
+                            if root and humanoid then
+                                local chars = {character}
+                                if Truss then
+                                    table.insert(chars, Truss)
+                                end
+                                
+                                local SpiderShift = game:GetService("UserInputService"):IsKeyDown(Enum.KeyCode.LeftShift)
+                                rayCheck.FilterDescendantsInstances = chars
+                                rayCheck.CollisionGroup = root.CollisionGroup or "Default"
+
+                                if Mode ~= 'Part' then
+                                    local vec = humanoid.MoveDirection * 2.5
+                                    local ray = workspace:Raycast(root.Position - Vector3.new(0, humanoid.HipHeight - 0.5, 0), vec, rayCheck)
+                                    
+                                    if Active and not ray then
+                                        root.Velocity = Vector3.new(root.Velocity.X, 0, root.Velocity.Z)
+                                    end
+
+                                    Active = ray
+                                    if Active and ray.Normal.Y == 0 then
+                                        if not SpiderShift then
+                                            if State then
+                                                humanoid:ChangeState(Enum.HumanoidStateType.Climbing)
+                                            end
+
+                                            root.Velocity *= Vector3.new(1, 0, 1)
+                                            root.Velocity += Vector3.new(0, Value, 0)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+
+                local function stopSpider()
+                    if spiderConnection then
+                        spiderConnection:Disconnect()
+                        spiderConnection = nil
+                    end
+                    
+                    SpiderButton.Text = "SPIDER"
+                    SpiderButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+                    
+                    if Truss then
+                        Truss:Destroy()
+                        Truss = nil
+                    end
+                end
+
+                SpiderButton.MouseButton1Down:connect(function()
+                    if spiderConnection then
+                        stopSpider()
+                    else
+                        startSpider()
+                    end
+                end)
+                
+                SpiderUI = ScreenGui
+            else
+                if SpiderUI then
+                    SpiderUI:Destroy()
+                    SpiderUI = nil
+                end
+                if spiderConnection then
+                    spiderConnection:Disconnect()
+                    spiderConnection = nil
+                end
+            end
+        end
+    })
+    
+    ESPTab:CreateToggle({
+        Name = "爬墙UI锁定",
+        CurrentValue = false,
+        Callback = function(v)
+            spiderUILocked = v
+            if SpiderUI and SpiderUI:FindFirstChild("SpiderButton") then
+                SpiderUI.SpiderButton.Draggable = not v
+            end
+        end
+    })
+    
+    ESPTab:CreateButton({
+        Name = "重置爬墙UI位置",
+        Callback = function()
+            if SpiderUI and SpiderUI:FindFirstChild("SpiderButton") then
+                SpiderUI.SpiderButton.Position = spiderUIOriginalPosition
+            end
         end
     })
     
@@ -1971,137 +2120,6 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
             end
 
             createDraggableUI()
-        end
-    })
-    
-    local HitboxV2Enabled = false
-    local HitboxV2Size = 4.5
-    local HitboxV2Color = BrickColor.new("Really blue")
-    local HitboxV2Transparency = 0.7
-    local HitboxV2Material = "Neon"
-    local HitboxV2TeamCheck = false
-    local HitboxV2Connection = nil
-
-    local function StartHitboxV2()
-        if not HitboxV2Connection then
-            HitboxV2Connection = RunService.RenderStepped:Connect(function()
-                if not HitboxV2Enabled then
-                    return
-                end
-                for i, v in next, game:GetService('Players'):GetPlayers() do
-                    if v.Name ~= game.Players.LocalPlayer.Name then
-                        pcall(function()
-                            if HitboxV2TeamCheck and v.Team == LocalPlayer.Team then
-                                return
-                            end
-                            v.Character.HumanoidRootPart.Size = Vector3.new(HitboxV2Size, HitboxV2Size, HitboxV2Size)
-                            v.Character.HumanoidRootPart.Transparency = HitboxV2Transparency
-                            v.Character.HumanoidRootPart.BrickColor = HitboxV2Color
-                            v.Character.HumanoidRootPart.Material = HitboxV2Material
-                            v.Character.HumanoidRootPart.CanCollide = false
-                        end)
-                    end
-                end
-            end)
-        end
-    end
-
-    local function StopHitboxV2()
-        if HitboxV2Connection then
-            HitboxV2Connection:Disconnect()
-            HitboxV2Connection = nil
-            for i, v in next, game:GetService('Players'):GetPlayers() do
-                if v.Name ~= game.Players.LocalPlayer.Name then
-                    pcall(function()
-                        v.Character.HumanoidRootPart.Size = Vector3.new(2, 2, 1)
-                        v.Character.HumanoidRootPart.Transparency = 0
-                        v.Character.HumanoidRootPart.BrickColor = BrickColor.new("Medium stone grey")
-                        v.Character.HumanoidRootPart.Material = "Plastic"
-                        v.Character.HumanoidRootPart.CanCollide = true
-                    end)
-                end
-            end
-        end
-    end
-
-    OtherTab:CreateToggle({
-        Name = "碰撞箱V2",
-        CurrentValue = false,
-        Callback = function(Value)
-            HitboxV2Enabled = Value
-            if Value then
-                StartHitboxV2()
-            else
-                StopHitboxV2()
-            end
-        end
-    })
-    
-    OtherTab:CreateSlider({
-        Name = "碰撞箱V2大小",
-        Range = {0, 100},
-        Increment = 0.1,
-        Suffix = "单位",
-        CurrentValue = 4.5,
-        Callback = function(Value)
-            HitboxV2Size = Value
-        end
-    })
-    
-    local HitboxV2Colors = {
-        ["Really blue"] = BrickColor.new("Really blue"),
-        ["Really red"] = BrickColor.new("Really red"),
-        ["Really black"] = BrickColor.new("Really black"),
-        ["Really green"] = BrickColor.new("Really green"),
-        ["White"] = BrickColor.new("White"),
-        ["Really yellow"] = BrickColor.new("Really yellow"),
-        ["Really purple"] = BrickColor.new("Really purple"),
-    }
-    
-    OtherTab:CreateDropdown({
-        Name = "碰撞箱V2颜色",
-        Options = {"Really blue", "Really red", "Really black", "Really green", "White", "Really yellow", "Really purple"},
-        CurrentOption = "Really blue",
-        Callback = function(Value)
-            HitboxV2Color = HitboxV2Colors[Value]
-        end
-    })
-    
-    OtherTab:CreateSlider({
-        Name = "碰撞箱V2透明度",
-        Range = {0, 1},
-        Increment = 0.05,
-        Suffix = "",
-        CurrentValue = 0.7,
-        Callback = function(Value)
-            HitboxV2Transparency = Value
-        end
-    })
-    
-    local HitboxV2Materials = {
-        "Neon",
-        "Plastic",
-        "Wood",
-        "Slate",
-        "Concrete",
-        "Granite",
-        "Marble"
-    }
-    
-    OtherTab:CreateDropdown({
-        Name = "碰撞箱V2材质",
-        Options = HitboxV2Materials,
-        CurrentOption = "Neon",
-        Callback = function(Value)
-            HitboxV2Material = Value
-        end
-    })
-    
-    OtherTab:CreateToggle({
-        Name = "碰撞箱V2队伍检测",
-        CurrentValue = false,
-        Callback = function(Value)
-            HitboxV2TeamCheck = Value
         end
     })
     local AimTab = Window:CreateTab("自瞄系统", 4483362458)
