@@ -17,6 +17,8 @@ local isDownPressed = false
 local currentHeight = 0
 local playerConnection = nil
 
+local useHeightPriorityMode = false
+
 local isMinimized = false
 local originalSize = nil
 local minimizedSize = UDim2.new(0, 176, 0, 26)
@@ -133,6 +135,24 @@ local function createDraggableUI()
     local titleCorner = Instance.new("UICorner")
     titleCorner.CornerRadius = UDim.new(0, 5)
     titleCorner.Parent = titleBar
+
+    local modeButton = Instance.new("TextButton")
+    modeButton.Name = "ModeButton"
+    modeButton.Size = UDim2.new(0, 22, 0, 22)
+    modeButton.Position = UDim2.new(0, 2, 0, 2)
+    modeButton.AnchorPoint = Vector2.new(0, 0)
+    modeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    modeButton.BackgroundTransparency = 0.7
+    modeButton.BorderSizePixel = 0
+    modeButton.Text = "↑"
+    modeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    modeButton.TextSize = 16
+    modeButton.Font = Enum.Font.GothamBold
+    modeButton.Parent = titleBar
+
+    local modeCorner = Instance.new("UICorner")
+    modeCorner.CornerRadius = UDim.new(0, 3)
+    modeCorner.Parent = modeButton
 
     closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
@@ -251,6 +271,56 @@ local function createDraggableUI()
         mainFrame.Visible = false
     end)
 
+    modeButton.MouseButton1Click:Connect(function()
+        useHeightPriorityMode = not useHeightPriorityMode
+        
+        if useHeightPriorityMode then
+            modeButton.Text = "↺"
+        else
+            modeButton.Text = "↑"
+        end
+        
+        if followBlock and playerConnection then
+            if playerConnection then
+                playerConnection:Disconnect()
+                playerConnection = nil
+            end
+            
+            if followBlock then
+                playerConnection = RunService.Heartbeat:Connect(function()
+                    if not followBlock or not followBlock.Parent then
+                        if playerConnection then
+                            playerConnection:Disconnect()
+                            playerConnection = nil
+                        end
+                        return
+                    end
+
+                    local character = player.Character
+                    if not character then return end
+
+                    local rootPart = character:FindFirstChild("HumanoidRootPart")
+                    if not rootPart then return end
+
+                    if useHeightPriorityMode then
+                        rootPart.CFrame = CFrame.new(
+                            followBlock.Position.X,
+                            followBlock.Position.Y + 3,
+                            followBlock.Position.Z
+                        )
+                    else
+                        local currentCFrame = rootPart.CFrame
+                        rootPart.CFrame = CFrame.new(
+                            followBlock.Position.X,
+                            followBlock.Position.Y + 3,
+                            followBlock.Position.Z
+                        ) * (currentCFrame - currentCFrame.Position)
+                    end
+                end)
+            end
+        end
+    end)
+
     local function ensurePlayerOnBlock()
         if not followBlock then return end
 
@@ -272,12 +342,20 @@ local function createDraggableUI()
             local rootPart = character:FindFirstChild("HumanoidRootPart")
             if not rootPart then return end
 
-            local currentCFrame = rootPart.CFrame
-            rootPart.CFrame = CFrame.new(
-                followBlock.Position.X,
-                followBlock.Position.Y + 3,
-                followBlock.Position.Z
-            ) * (currentCFrame - currentCFrame.Position)
+            if useHeightPriorityMode then
+                rootPart.CFrame = CFrame.new(
+                    followBlock.Position.X,
+                    followBlock.Position.Y + 3,
+                    followBlock.Position.Z
+                )
+            else
+                local currentCFrame = rootPart.CFrame
+                rootPart.CFrame = CFrame.new(
+                    followBlock.Position.X,
+                    followBlock.Position.Y + 3,
+                    followBlock.Position.Z
+                ) * (currentCFrame - currentCFrame.Position)
+            end
         end)
     end
 
