@@ -177,7 +177,7 @@ local buttonUILocked = false
 local buttonUIOriginalPosition = UDim2.new(0.5, 0, 0.6, 0)
 local autoInteract = false
 local autoInteractThread = nil
-local interactMaxDistance = 10
+local interactMaxDistance = 100
 local spiderEnabled = false
 local SpiderUI = nil
 local spiderUILocked = false
@@ -219,6 +219,37 @@ ESPTab:CreateToggle({
             LocalPlayer.CameraMaxZoomDistance = 9000000000
         else
             LocalPlayer.CameraMaxZoomDistance = 32
+        end
+    end
+})
+
+ESPTab:CreateButton({
+    Name = "视角穿墙",
+    Callback = function()
+        local speaker = game:GetService("Players").LocalPlayer
+        if not speaker then
+            warn("LocalPlayer not found")
+            return
+        end
+
+        local sc = (debug and debug.setconstant) or setconstant
+        local gc = (debug and debug.getconstants) or getconstants
+        if not sc or not getgc or not gc then
+            local notify = notify or warn
+            return notify('Incompatible Exploit', 'Your exploit does not support this command')
+        end
+
+        local pop = speaker.PlayerScripts.PlayerModule.CameraModule.ZoomController.Popper
+        for _, v in pairs(getgc()) do
+            if type(v) == 'function' and getfenv(v).script == pop then
+                for i, v1 in pairs(gc(v)) do
+                    if tonumber(v1) == 0.25 then
+                        sc(v, i, 0)
+                    elseif tonumber(v1) == 0 then
+                        sc(v, i, 0.25)
+                    end
+                end
+            end
         end
     end
 })
@@ -397,7 +428,7 @@ ESPTab:CreateColorPicker({
 })
 
 ESPTab:CreateToggle({
-    Name = "透视互动按钮",
+    Name = "互动按钮",
     CurrentValue = false,
     Callback = function(v)
         buttonBindEnabled = v
@@ -561,7 +592,7 @@ ESPTab:CreateSlider({
     Range = {5, 1000},
     Increment = 5,
     Suffix = "单位",
-    CurrentValue = 10,
+    CurrentValue = 100,
     Callback = function(Value)
         interactMaxDistance = Value
     end
@@ -2690,6 +2721,27 @@ OtherTab:CreateButton({
     end
 })
 
+OtherTab:CreateButton({
+    Name = "重新加入服务器",
+    Callback = function()
+        local Players = game:GetService("Players")
+        local TeleportService = game:GetService("TeleportService")
+        local PlaceId = game.PlaceId
+        local CurrentJobId = game.JobId
+
+        Players.LocalPlayer:Kick("\nRejoining...")
+        task.wait()
+        TeleportService:TeleportToPlaceInstance(PlaceId, CurrentJobId, Players.LocalPlayer)
+    end
+})
+
+OtherTab:CreateButton({
+    Name = "float V2",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/HoaTan1123/1/refs/heads/main/float%20V2.0"))()
+    end
+})
+
 local AimTab = Window:CreateTab("自瞄系统", 4483362458)
 local AimEnabled = false
 local PredictAim = true
@@ -2852,7 +2904,7 @@ local function FindBestTarget()
                             closestDistance = distanceToCenter
                             bestTarget = player
                         end
-                    end
+                  end
                 end
             end
         end
